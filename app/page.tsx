@@ -16,8 +16,14 @@ import {
   Send,
   History,
   Sparkles,
-  Info
+  Info,
+  QrCode,
+  X,
+  Copy,
+  Check,
+  Code2
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import Sparkline from "@/components/Sparkline";
 
 // Interface Definitions
@@ -215,6 +221,36 @@ export default function Home() {
   const [simAmount, setSimAmount] = useState<number>(1000);
   const [simOp, setSimOp] = useState<"mint" | "transfer">("mint");
   const [simSuccessMsg, setSimSuccessMsg] = useState<string | null>(null);
+
+  // QR Code Modal State
+  const [qrModalInscription, setQrModalInscription] = useState<Inscription | null>(null);
+  const [qrDataType, setQrDataType] = useState<"protocol" | "txhash" | "full">("protocol");
+  const [copiedQrData, setCopiedQrData] = useState(false);
+
+  // Helper to format payload for QR Code
+  const getQrPayload = (insc: Inscription, type: "protocol" | "txhash" | "full") => {
+    if (type === "protocol") {
+      return JSON.stringify({
+        p: "brc-20",
+        op: insc.op,
+        tick: insc.ticker,
+        amt: String(insc.amount)
+      }, null, 2);
+    }
+    if (type === "txhash") {
+      return `bitcoin:${insc.txHash}?inscription=${insc.id}`;
+    }
+    return JSON.stringify({
+      p: "brc-20",
+      op: insc.op,
+      tick: insc.ticker,
+      amt: String(insc.amount),
+      id: insc.id,
+      number: insc.number,
+      txHash: insc.txHash,
+      timestamp: insc.timestamp
+    }, null, 2);
+  };
 
   // Stats Counters
   const [stats, setStats] = useState({
@@ -780,7 +816,7 @@ export default function Home() {
                 <div className="overflow-x-auto" id="inscriptions_table_container">
                   {inscriptions.length === 0 ? (
                     <div className="py-12 text-center text-slate-500 text-xs" id="no_inscriptions_found">
-                      You haven't inscribed any operations yet. Use the Simulator on the left!
+                      You haven&apos;t inscribed any operations yet. Use the Simulator on the left!
                     </div>
                   ) : (
                     <table className="w-full text-left border-collapse" id="inscriptions_table">
@@ -792,6 +828,7 @@ export default function Home() {
                           <th className="py-3 px-6">Amount</th>
                           <th className="py-3 px-6">Timestamp</th>
                           <th className="py-3 px-6">Tx Hash</th>
+                          <th className="py-3 px-6 text-right">QR Code</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/55 text-xs text-slate-300">
@@ -816,6 +853,17 @@ export default function Home() {
                             <td className="py-3 px-6 font-mono font-semibold text-white">{i.amount.toLocaleString()}</td>
                             <td className="py-3 px-6 font-mono text-slate-400 text-[11px]">{i.timestamp}</td>
                             <td className="py-3 px-6 font-mono text-slate-400 text-[11px]">{i.txHash}</td>
+                            <td className="py-3 px-6 text-right">
+                              <button
+                                onClick={() => setQrModalInscription(i)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg transition-all shadow-sm hover:shadow-amber-500/10 cursor-pointer"
+                                id={`btn_qr_${i.number}`}
+                                title="Generate QR code for transaction"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>Generate QR</span>
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -874,6 +922,166 @@ export default function Home() {
           </div>
 
         </div>
+
+        {/* QR Code Modal Overlay */}
+        <AnimatePresence>
+          {qrModalInscription && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md" id="qr_modal_backdrop">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+                id="qr_modal_card"
+              >
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50" id="qr_modal_header">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-400">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white text-sm">Inscription Transaction QR Code</h3>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Inscription #{qrModalInscription.number} (${qrModalInscription.ticker.toUpperCase()})
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setQrModalInscription(null)}
+                    className="p-1.5 text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+                    id="qr_modal_close_btn"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-6 flex flex-col gap-5" id="qr_modal_body">
+                  {/* Mode Selector */}
+                  <div className="flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono" id="qr_type_selector">
+                    <button
+                      onClick={() => setQrDataType("protocol")}
+                      className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
+                        qrDataType === "protocol"
+                          ? "bg-amber-500 text-slate-950 font-bold shadow-md"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                      id="qr_tab_protocol"
+                    >
+                      BRC-20 Payload
+                    </button>
+                    <button
+                      onClick={() => setQrDataType("txhash")}
+                      className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
+                        qrDataType === "txhash"
+                          ? "bg-amber-500 text-slate-950 font-bold shadow-md"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                      id="qr_tab_txhash"
+                    >
+                      Bitcoin URI
+                    </button>
+                    <button
+                      onClick={() => setQrDataType("full")}
+                      className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
+                        qrDataType === "full"
+                          ? "bg-amber-500 text-slate-950 font-bold shadow-md"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                      id="qr_tab_full"
+                    >
+                      Full JSON
+                    </button>
+                  </div>
+
+                  {/* QR Visual Container */}
+                  <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 border border-slate-800/80 rounded-xl gap-3" id="qr_display_container">
+                    <div className="p-4 bg-white rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center" id="qr_canvas_wrapper">
+                      <QRCodeSVG
+                        id="inscription-qr-code-svg"
+                        value={getQrPayload(qrModalInscription, qrDataType)}
+                        size={190}
+                        level="H"
+                        includeMargin={false}
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400 text-center font-mono">
+                      {qrDataType === "protocol" && "Scan to read BRC-20 JSON inscription protocol payload"}
+                      {qrDataType === "txhash" && "Scan to open Bitcoin transaction URI reference"}
+                      {qrDataType === "full" && "Scan to read full inscription metadata record"}
+                    </p>
+                  </div>
+
+                  {/* Code Payload Preview */}
+                  <div className="flex flex-col gap-1.5" id="qr_payload_preview">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                      <span className="flex items-center gap-1">
+                        <Code2 className="w-3.5 h-3.5 text-amber-500" />
+                        Encoded Content:
+                      </span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(getQrPayload(qrModalInscription, qrDataType));
+                          setCopiedQrData(true);
+                          setTimeout(() => setCopiedQrData(false), 2000);
+                        }}
+                        className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-sans cursor-pointer"
+                        id="btn_copy_qr_payload"
+                      >
+                        {copiedQrData ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400 font-semibold">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy Raw Data</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-[11px] font-mono text-amber-300/90 overflow-x-auto max-h-28 whitespace-pre-wrap break-all select-all" id="qr_raw_data_pre">
+                      {getQrPayload(qrModalInscription, qrDataType)}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Modal Footer Actions */}
+                <div className="px-6 py-4 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between" id="qr_modal_footer">
+                  <button
+                    onClick={() => {
+                      const svg = document.getElementById("inscription-qr-code-svg");
+                      if (!svg) return;
+                      const svgData = new XMLSerializer().serializeToString(svg);
+                      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+                      const svgUrl = URL.createObjectURL(svgBlob);
+                      const downloadLink = document.createElement("a");
+                      downloadLink.href = svgUrl;
+                      downloadLink.download = `brc20_inscription_${qrModalInscription.number}_qr.svg`;
+                      document.body.appendChild(downloadLink);
+                      downloadLink.click();
+                      document.body.removeChild(downloadLink);
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium font-mono transition-all border border-slate-700 shadow-sm cursor-pointer"
+                    id="download_qr_btn"
+                  >
+                    <Download className="w-4 h-4 text-amber-400" />
+                    Download QR (SVG)
+                  </button>
+                  <button
+                    onClick={() => setQrModalInscription(null)}
+                    className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-all shadow-md shadow-amber-500/10 cursor-pointer"
+                    id="close_qr_modal_btn"
+                  >
+                    Done
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
       </main>
 
