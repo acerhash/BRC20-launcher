@@ -34,10 +34,29 @@ import {
   Layers,
   Terminal,
   ArrowRight,
-  Play
+  Play,
+  Gift,
+  Users,
+  Upload,
+  Share2,
+  Zap
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Sparkline from "@/components/Sparkline";
+
+// Interface Definitions
+interface AirdropCampaign {
+  id: string;
+  tokenType: "BRC-20" | "Base B20";
+  tickerOrSymbol: string;
+  totalAmount: number;
+  recipientCount: number;
+  perRecipientAmount: number;
+  memo: string;
+  txHash: string;
+  timestamp: string;
+  status: "Completed" | "In Progress" | "Failed";
+}
 
 // Interface Definitions
 interface BRC20Token {
@@ -308,6 +327,62 @@ contract BaseB20Token is ERC20, ERC20Permit, Ownable {
     }
 }`;
 
+const VIEM_AIRDROP_CODE_SNIPPET = `import { createWalletClient, http, parseUnits, stringToHex } from 'viem';
+import { base } from 'viem/chains';
+
+// Batch Airdrop Minted Coins on Base B20 / ERC-20
+export async function batchAirdropB20(
+  tokenAddress: \`0x\${string}\`,
+  recipients: \`0x\${string}\`[],
+  amountPerWallet: string,
+  memoText: string
+) {
+  const memoBytes32 = stringToHex(memoText, { size: 32 });
+  const amountWei = parseUnits(amountPerWallet, 18);
+
+  console.log(\`Broadcasting Airdrop to \${recipients.length} community wallets...\`);
+
+  const txHashes = [];
+  for (const recipient of recipients) {
+    const hash = await walletClient.writeContract({
+      address: tokenAddress,
+      abi: B20_ABI,
+      functionName: 'transferWithMemo',
+      args: [recipient, amountWei, memoBytes32],
+    });
+    txHashes.push(hash);
+  }
+  return txHashes;
+}`;
+
+// Initial Mock Airdrop Campaigns Data
+const INITIAL_AIRDROP_CAMPAIGNS: AirdropCampaign[] = [
+  {
+    id: "airdrop-001",
+    tokenType: "BRC-20",
+    tickerOrSymbol: "ordi",
+    totalAmount: 5000,
+    recipientCount: 5,
+    perRecipientAmount: 1000,
+    memo: "Genesis BRC-20 Holder Airdrop",
+    txHash: "0x8a92f01982a0194820391092a019a820391092a0",
+    timestamp: "2026-07-15 11:20:00",
+    status: "Completed"
+  },
+  {
+    id: "airdrop-002",
+    tokenType: "Base B20",
+    tickerOrSymbol: "BCASH",
+    totalAmount: 25000,
+    recipientCount: 10,
+    perRecipientAmount: 2500,
+    memo: "airdrop-season1-base-builders",
+    txHash: "0x3b1c920194820391092a019a820391092a019482",
+    timestamp: "2026-07-20 16:45:10",
+    status: "Completed"
+  }
+];
+
 // Initial realistic BRC-20 Mock Data
 const INITIAL_TOKENS: BRC20Token[] = [
   {
@@ -456,7 +531,7 @@ const INITIAL_LEDGER: LedgerBalance[] = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments">("tokens");
+  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments" | "airdrop">("tokens");
   const [searchQuery, setSearchQuery] = useState("");
   const [mintFilter, setMintFilter] = useState<"all" | "completed" | "inprogress">("all");
 
@@ -468,6 +543,17 @@ export default function Home() {
   // Base B20 Standard States
   const [b20Tokens, setB20Tokens] = useState<B20Token[]>(INITIAL_B20_TOKENS);
   const [b20Orders, setB20Orders] = useState<B20OrderPayment[]>(INITIAL_B20_ORDERS);
+
+  // Airdrop Suite States
+  const [airdropCampaigns, setAirdropCampaigns] = useState<AirdropCampaign[]>(INITIAL_AIRDROP_CAMPAIGNS);
+  const [airdropTokenType, setAirdropTokenType] = useState<"BRC-20" | "Base B20">("BRC-20");
+  const [airdropSelectedCoin, setAirdropSelectedCoin] = useState<string>("ordi");
+  const [airdropRecipientsRaw, setAirdropRecipientsRaw] = useState<string>("");
+  const [airdropAmountPerWallet, setAirdropAmountPerWallet] = useState<number>(500);
+  const [airdropMemo, setAirdropMemo] = useState<string>("Genesis Community Airdrop");
+  const [isExecutingAirdrop, setIsExecutingAirdrop] = useState(false);
+  const [airdropStep, setAirdropStep] = useState<number>(0);
+  const [airdropToast, setAirdropToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // B20 Launchpad Form States
   const [launchName, setLaunchName] = useState("");
@@ -491,8 +577,155 @@ export default function Home() {
 
   // Code Modal / Snippet Viewer State
   const [codeModalOpen, setCodeModalOpen] = useState(false);
-  const [codeSnippetType, setCodeSnippetType] = useState<"viem_pay" | "solidity_b20">("viem_pay");
+  const [codeSnippetType, setCodeSnippetType] = useState<"viem_pay" | "solidity_b20" | "viem_airdrop">("viem_pay");
   const [copiedSnippet, setCopiedSnippet] = useState(false);
+
+  // Airdrop Execution Handlers
+  const loadSampleRecipients = () => {
+    const sampleAddresses = [
+      "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+      "0x324082901a87b9c0214a1f9028a019e840129bc2",
+      "0x892a014920194b0291a0293019a820391092a01f",
+      "bc1q9y282x81928371289371289371289371285f2k",
+      "bc1p7a123981293812938129381293812938122h5n"
+    ];
+    setAirdropRecipientsRaw(sampleAddresses.join("\n"));
+  };
+
+  const handleCsvImport = () => {
+    const mockCsvAddresses = [
+      "0xa92f01982a0194820391092a019a820391092100",
+      "0xb20194820391092a019a820391092a0194820211",
+      "0xc391092a019a820391092a0194820391092a0322",
+      "0xd4820391092a019a820391092a01948203910433"
+    ];
+    setAirdropRecipientsRaw(mockCsvAddresses.join("\n"));
+    setAirdropToast({ message: "Imported 4 recipient addresses from CSV file.", type: "success" });
+  };
+
+  const handleExecuteAirdrop = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAirdropToast(null);
+
+    const addresses = airdropRecipientsRaw
+      .split(/[\n,;\s]+/)
+      .map((a) => a.trim())
+      .filter((a) => a.length > 0);
+
+    if (addresses.length === 0) {
+      setAirdropToast({ message: "Please enter or import at least one recipient wallet address.", type: "error" });
+      return;
+    }
+
+    const totalCoins = addresses.length * airdropAmountPerWallet;
+
+    if (airdropTokenType === "BRC-20") {
+      const selectedTokenObj = tokens.find((t) => t.ticker === airdropSelectedCoin);
+      if (!selectedTokenObj) {
+        setAirdropToast({ message: "Selected BRC-20 token not found.", type: "error" });
+        return;
+      }
+      if (selectedTokenObj.minted < totalCoins) {
+        setAirdropToast({
+          message: `Insufficient minted coins! Token has ${selectedTokenObj.minted.toLocaleString()} minted, but campaign requires ${totalCoins.toLocaleString()}.`,
+          type: "error"
+        });
+        return;
+      }
+    } else {
+      const selectedB20Obj = b20Tokens.find((t) => t.symbol === airdropSelectedCoin);
+      if (!selectedB20Obj) {
+        setAirdropToast({ message: "Selected B20 token not found.", type: "error" });
+        return;
+      }
+      if (selectedB20Obj.paused) {
+        setAirdropToast({ message: `Cannot airdrop ${selectedB20Obj.symbol}: Contract transfers are PAUSED!`, type: "error" });
+        return;
+      }
+      if (selectedB20Obj.currentSupply < totalCoins) {
+        setAirdropToast({
+          message: `Insufficient minted supply! ${selectedB20Obj.symbol} has ${selectedB20Obj.currentSupply.toLocaleString()} minted, but campaign requires ${totalCoins.toLocaleString()}.`,
+          type: "error"
+        });
+        return;
+      }
+    }
+
+    setIsExecutingAirdrop(true);
+    setAirdropStep(1);
+
+    await new Promise((r) => setTimeout(r, 600));
+    setAirdropStep(2);
+
+    await new Promise((r) => setTimeout(r, 700));
+    setAirdropStep(3);
+
+    await new Promise((r) => setTimeout(r, 800));
+
+    const randomTxHash = "0x" + Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+    const nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+    const newCampaign: AirdropCampaign = {
+      id: `airdrop-${Date.now().toString().slice(-4)}`,
+      tokenType: airdropTokenType,
+      tickerOrSymbol: airdropSelectedCoin,
+      totalAmount: totalCoins,
+      recipientCount: addresses.length,
+      perRecipientAmount: airdropAmountPerWallet,
+      memo: airdropMemo || "Community Airdrop",
+      txHash: randomTxHash,
+      timestamp: nowStr,
+      status: "Completed"
+    };
+
+    setAirdropCampaigns((prev) => [newCampaign, ...prev]);
+
+    if (airdropTokenType === "BRC-20") {
+      setTokens((prev) =>
+        prev.map((t) => {
+          if (t.ticker === airdropSelectedCoin) {
+            return {
+              ...t,
+              holders: t.holders + addresses.length,
+              transactions: t.transactions + addresses.length
+            };
+          }
+          return t;
+        })
+      );
+
+      const newInsc: Inscription = {
+        id: `${randomTxHash}i0`,
+        number: 542000 + inscriptions.length,
+        ticker: airdropSelectedCoin,
+        amount: totalCoins,
+        op: "transfer",
+        timestamp: nowStr,
+        txHash: randomTxHash
+      };
+      setInscriptions((prev) => [newInsc, ...prev]);
+    } else {
+      setB20Tokens((prev) =>
+        prev.map((b) => {
+          if (b.symbol === airdropSelectedCoin) {
+            return {
+              ...b,
+              memosCount: b.memosCount + addresses.length
+            };
+          }
+          return b;
+        })
+      );
+    }
+
+    setIsExecutingAirdrop(false);
+    setAirdropStep(0);
+    setAirdropToast({
+      message: `🎉 Airdrop successful! Distributed ${totalCoins.toLocaleString()} $${airdropSelectedCoin.toUpperCase()} across ${addresses.length} recipient wallets.`,
+      type: "success"
+    });
+    setAirdropRecipientsRaw("");
+  };
 
   // Inscribe simulator fields
   const [simTicker, setSimTicker] = useState("base");
@@ -1129,6 +1362,18 @@ export default function Home() {
               >
                 <Receipt className="w-4 h-4 text-emerald-300" />
                 B20 Payments & Memos
+              </button>
+              <button
+                onClick={() => setActiveTab("airdrop")}
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all ${
+                  activeTab === "airdrop"
+                    ? "bg-purple-600 text-white font-semibold shadow-lg shadow-purple-500/20"
+                    : "text-purple-400 hover:text-purple-300 hover:bg-purple-950/40"
+                }`}
+                id="tab_btn_airdrop"
+              >
+                <Gift className="w-4 h-4 text-purple-300" />
+                Airdrop Suite
               </button>
             </div>
 
@@ -1993,6 +2238,397 @@ export default function Home() {
               </div>
             )}
 
+            {/* AIRDROP SUITE TAB CONTENT */}
+            {activeTab === "airdrop" && (
+              <div className="flex flex-col gap-6" id="airdrop_suite_panel">
+                {/* Hero Header Card */}
+                <div className="bg-gradient-to-r from-purple-900/40 via-slate-900 to-indigo-900/40 border border-purple-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6" id="airdrop_hero_card">
+                  <div className="flex items-start gap-4 z-10">
+                    <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-purple-400 shrink-0">
+                      <Gift className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-lg font-bold text-white">Minted Coin Airdrop Suite</h2>
+                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-mono rounded-full font-bold">
+                          Batch Distribution
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+                        Airdrop minted BRC-20 coins or Base B20 tokens to holder lists in bulk. Features automatic balance checking, optional memo attachment, and live onchain ledger reconciliation.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setCodeSnippetType("viem_airdrop");
+                      setCodeModalOpen(true);
+                    }}
+                    className="z-10 self-start md:self-auto px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20 cursor-pointer"
+                  >
+                    <Code className="w-4 h-4" />
+                    <span>View Airdrop Code</span>
+                  </button>
+                </div>
+
+                {/* Top Metrics Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" id="airdrop_metrics_grid">
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col gap-1">
+                    <span className="text-[10px] text-slate-400 font-mono">Campaigns Launched</span>
+                    <span className="text-lg font-bold text-white font-mono">{airdropCampaigns.length}</span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col gap-1">
+                    <span className="text-[10px] text-slate-400 font-mono">Total Coins Airdropped</span>
+                    <span className="text-lg font-bold text-purple-400 font-mono">
+                      {airdropCampaigns.reduce((acc, c) => acc + c.totalAmount, 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col gap-1">
+                    <span className="text-[10px] text-slate-400 font-mono">Wallets Rewarded</span>
+                    <span className="text-lg font-bold text-emerald-400 font-mono">
+                      {airdropCampaigns.reduce((acc, c) => acc + c.recipientCount, 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col gap-1">
+                    <span className="text-[10px] text-slate-400 font-mono">Eligible Minted Pools</span>
+                    <span className="text-lg font-bold text-amber-400 font-mono">
+                      {tokens.length + b20Tokens.length} Tokens
+                    </span>
+                  </div>
+                </div>
+
+                {/* Toast Notification */}
+                <AnimatePresence>
+                  {airdropToast && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`p-4 rounded-xl text-xs font-medium border flex items-center justify-between ${
+                        airdropToast.type === "success"
+                          ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-200"
+                          : "bg-rose-950/80 border-rose-500/50 text-rose-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {airdropToast.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                        )}
+                        <span>{airdropToast.message}</span>
+                      </div>
+                      <button
+                        onClick={() => setAirdropToast(null)}
+                        className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Main 2-Column Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left Column: Form (lg:col-span-6) */}
+                  <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-5" id="airdrop_form_card">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Send className="w-4 h-4 text-purple-400" />
+                        Launch New Airdrop Campaign
+                      </h3>
+                      <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                        Multi-Wallet Batch
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleExecuteAirdrop} className="flex flex-col gap-4" id="airdrop_form">
+                      {/* Token Standard Toggle */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Standard Type</label>
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAirdropTokenType("BRC-20");
+                              setAirdropSelectedCoin(tokens[0]?.ticker || "ordi");
+                            }}
+                            className={`py-2 px-3 rounded-lg font-bold transition-all cursor-pointer ${
+                              airdropTokenType === "BRC-20"
+                                ? "bg-amber-500 text-slate-950 shadow-md"
+                                : "text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            BRC-20 Minted Coins
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAirdropTokenType("Base B20");
+                              setAirdropSelectedCoin(b20Tokens[0]?.symbol || "BCASH");
+                            }}
+                            className={`py-2 px-3 rounded-lg font-bold transition-all cursor-pointer ${
+                              airdropTokenType === "Base B20"
+                                ? "bg-blue-600 text-white shadow-md"
+                                : "text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            Base B20 Tokens
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Select Minted Coin Dropdown */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">
+                          Select {airdropTokenType} Token
+                        </label>
+                        <select
+                          value={airdropSelectedCoin}
+                          onChange={(e) => setAirdropSelectedCoin(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 font-mono"
+                        >
+                          {airdropTokenType === "BRC-20"
+                            ? tokens.map((t) => (
+                                <option key={t.ticker} value={t.ticker}>
+                                  ${t.ticker.toUpperCase()} — Minted: {t.minted.toLocaleString()} / Max: {t.totalSupply.toLocaleString()}
+                                </option>
+                              ))
+                            : b20Tokens.map((b) => (
+                                <option key={b.symbol} value={b.symbol}>
+                                  ${b.symbol} — Supply: {b.currentSupply.toLocaleString()} / Cap: {b.totalSupplyCap.toLocaleString()} {b.paused ? "(PAUSED)" : ""}
+                                </option>
+                              ))}
+                        </select>
+                      </div>
+
+                      {/* Token Summary Box */}
+                      <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate-400">Minted Supply Pool:</span>
+                        <span className="text-white font-bold">
+                          {airdropTokenType === "BRC-20"
+                            ? `${tokens.find((t) => t.ticker === airdropSelectedCoin)?.minted.toLocaleString() || 0} $${airdropSelectedCoin.toUpperCase()}`
+                            : `${b20Tokens.find((b) => b.symbol === airdropSelectedCoin)?.currentSupply.toLocaleString() || 0} $${airdropSelectedCoin}`}
+                        </span>
+                      </div>
+
+                      {/* Recipient Addresses Textarea */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-purple-400" />
+                            Recipient Wallet Addresses
+                          </label>
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {airdropRecipientsRaw.split(/[\n,;\s]+/).filter((a) => a.length > 0).length} Detected
+                          </span>
+                        </div>
+                        <textarea
+                          rows={4}
+                          value={airdropRecipientsRaw}
+                          onChange={(e) => setAirdropRecipientsRaw(e.target.value)}
+                          placeholder="Paste addresses line-by-line or comma separated (e.g. 0x71C7...976F)"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-purple-500 leading-relaxed"
+                        />
+                        <div className="flex items-center gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={loadSampleRecipients}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-purple-300 rounded-lg text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <Zap className="w-3 h-3 text-purple-400" />
+                            Load 5 Community Wallets
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCsvImport}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <Upload className="w-3 h-3 text-slate-400" />
+                            Import CSV List
+                          </button>
+                          {airdropRecipientsRaw && (
+                            <button
+                              type="button"
+                              onClick={() => setAirdropRecipientsRaw("")}
+                              className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 text-slate-500 hover:text-slate-300 rounded-lg text-[11px] font-mono transition-all ml-auto cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Amount Per Wallet & Quick Presets */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-medium text-slate-400">Amount Per Wallet</label>
+                          <div className="flex gap-1">
+                            {[100, 500, 1000, 5000].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setAirdropAmountPerWallet(preset)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                                  airdropAmountPerWallet === preset
+                                    ? "bg-purple-600 text-white font-bold"
+                                    : "bg-slate-800 text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          type="number"
+                          value={airdropAmountPerWallet}
+                          onChange={(e) => setAirdropAmountPerWallet(Math.max(1, parseInt(e.target.value) || 0))}
+                          min="1"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Airdrop Memo Tag */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">
+                          Campaign Memo Tag
+                        </label>
+                        <input
+                          type="text"
+                          value={airdropMemo}
+                          onChange={(e) => setAirdropMemo(e.target.value)}
+                          placeholder="e.g. Genesis Community Season 1 Airdrop"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Real-time Calculation Summary Box */}
+                      {(() => {
+                        const recCount = airdropRecipientsRaw.split(/[\n,;\s]+/).filter((a) => a.length > 0).length;
+                        const reqTotal = recCount * airdropAmountPerWallet;
+                        return (
+                          <div className="p-3 bg-purple-950/20 border border-purple-500/30 rounded-xl flex items-center justify-between text-xs font-mono">
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">Total Airdrop Requirement:</span>
+                              <span className="text-purple-300 font-bold text-sm">
+                                {reqTotal.toLocaleString()} ${airdropSelectedCoin.toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-slate-400 block text-[10px]">Recipients:</span>
+                              <span className="text-white font-bold">{recCount} Wallets</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Submit Button */}
+                      <button
+                        type="submit"
+                        disabled={isExecutingAirdrop}
+                        className="w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 transition-all cursor-pointer disabled:opacity-50"
+                        id="btn_execute_airdrop"
+                      >
+                        {isExecutingAirdrop ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                            <span>
+                              {airdropStep === 1 && "Validating wallets & supply pool..."}
+                              {airdropStep === 2 && "Signing batch transaction memos..."}
+                              {airdropStep === 3 && "Broadcasting onchain transfers..."}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Gift className="w-4 h-4" />
+                            <span>Broadcast Minted Coin Airdrop</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Campaign History Table (lg:col-span-6) */}
+                  <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4" id="airdrop_history_card">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <History className="w-4 h-4 text-purple-400" />
+                        Campaign History & Ledger Logs ({airdropCampaigns.length})
+                      </h3>
+                      <button
+                        onClick={() => {
+                          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(airdropCampaigns, null, 2));
+                          const downloadAnchor = document.createElement("a");
+                          downloadAnchor.setAttribute("href", dataStr);
+                          downloadAnchor.setAttribute("download", `airdrop_campaigns_${Date.now()}.json`);
+                          document.body.appendChild(downloadAnchor);
+                          downloadAnchor.click();
+                          downloadAnchor.remove();
+                        }}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <Download className="w-3 h-3 text-purple-400" />
+                        Export JSON
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto" id="airdrop_history_table_container">
+                      <table className="w-full text-left border-collapse" id="airdrop_history_table">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/40">
+                            <th className="py-3 px-3">Coin & Type</th>
+                            <th className="py-3 px-3">Total Airdropped</th>
+                            <th className="py-3 px-3">Recipients</th>
+                            <th className="py-3 px-3">Memo Tag</th>
+                            <th className="py-3 px-3 text-center">Status</th>
+                            <th className="py-3 px-3 text-right">Timestamp</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
+                          {airdropCampaigns.map((campaign) => (
+                            <tr key={campaign.id} className="hover:bg-slate-950/30 transition-all">
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-white">${campaign.tickerOrSymbol.toUpperCase()}</span>
+                                  <span className={`px-1.5 py-0.2 text-[9px] rounded font-bold border ${
+                                    campaign.tokenType === "BRC-20"
+                                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                      : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                  }`}>
+                                    {campaign.tokenType}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 font-semibold text-purple-300">
+                                {campaign.totalAmount.toLocaleString()}
+                              </td>
+                              <td className="py-3 px-3 text-slate-400">
+                                {campaign.recipientCount} wallets ({campaign.perRecipientAmount}/ea)
+                              </td>
+                              <td className="py-3 px-3 text-slate-400 text-[11px] truncate max-w-[120px]" title={campaign.memo}>
+                                {campaign.memo}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full font-bold">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  Confirmed
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right text-[10px] text-slate-500">
+                                {campaign.timestamp}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
 
         </div>
@@ -2284,7 +2920,7 @@ export default function Home() {
                 </div>
 
                 {/* Tab Switcher */}
-                <div className="px-6 pt-4 flex gap-2">
+                <div className="px-6 pt-4 flex gap-2 flex-wrap">
                   <button
                     onClick={() => setCodeSnippetType("viem_pay")}
                     className={`py-1.5 px-3 rounded-lg text-xs font-mono transition-all border cursor-pointer ${
@@ -2305,17 +2941,33 @@ export default function Home() {
                   >
                     BaseB20Token.sol (Solidity)
                   </button>
+                  <button
+                    onClick={() => setCodeSnippetType("viem_airdrop")}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-mono transition-all border cursor-pointer ${
+                      codeSnippetType === "viem_airdrop"
+                        ? "bg-purple-600 text-white border-purple-500 font-bold"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
+                    }`}
+                  >
+                    batch-airdrop.js (Viem)
+                  </button>
                 </div>
 
                 {/* Code Content */}
                 <div className="p-6 flex flex-col gap-3">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span className="font-mono text-[11px] text-slate-500">
-                      {codeSnippetType === "viem_pay" ? "Client-side / Node.js payment reconciliation" : "OpenZeppelin derived ERC-20 superset contract"}
+                      {codeSnippetType === "viem_pay" && "Client-side / Node.js payment reconciliation"}
+                      {codeSnippetType === "solidity_b20" && "OpenZeppelin derived ERC-20 superset contract"}
+                      {codeSnippetType === "viem_airdrop" && "Batch transfer script with memo logging & event verification"}
                     </span>
                     <button
                       onClick={() => {
-                        const codeText = codeSnippetType === "viem_pay" ? VIEM_PAYMENT_CODE_SNIPPET : SOLIDITY_B20_CODE_SNIPPET;
+                        const codeText = codeSnippetType === "viem_pay"
+                          ? VIEM_PAYMENT_CODE_SNIPPET
+                          : codeSnippetType === "solidity_b20"
+                          ? SOLIDITY_B20_CODE_SNIPPET
+                          : VIEM_AIRDROP_CODE_SNIPPET;
                         navigator.clipboard.writeText(codeText);
                         setCopiedSnippet(true);
                         setTimeout(() => setCopiedSnippet(false), 2000);
@@ -2337,7 +2989,9 @@ export default function Home() {
                   </div>
 
                   <pre className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-emerald-300/90 overflow-x-auto max-h-96 whitespace-pre leading-relaxed select-all">
-                    {codeSnippetType === "viem_pay" ? VIEM_PAYMENT_CODE_SNIPPET : SOLIDITY_B20_CODE_SNIPPET}
+                    {codeSnippetType === "viem_pay" && VIEM_PAYMENT_CODE_SNIPPET}
+                    {codeSnippetType === "solidity_b20" && SOLIDITY_B20_CODE_SNIPPET}
+                    {codeSnippetType === "viem_airdrop" && VIEM_AIRDROP_CODE_SNIPPET}
                   </pre>
                 </div>
 
