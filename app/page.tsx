@@ -40,7 +40,9 @@ import {
   Upload,
   Share2,
   Zap,
-  Sliders
+  Sliders,
+  Bell,
+  Megaphone
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Sparkline from "@/components/Sparkline";
@@ -532,7 +534,7 @@ const INITIAL_LEDGER: LedgerBalance[] = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments" | "airdrop">("tokens");
+  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments" | "airdrop" | "notifications">("tokens");
   const [searchQuery, setSearchQuery] = useState("");
   const [mintFilter, setMintFilter] = useState<"all" | "completed" | "inprogress">("all");
 
@@ -555,6 +557,129 @@ export default function Home() {
   const [isExecutingAirdrop, setIsExecutingAirdrop] = useState(false);
   const [airdropStep, setAirdropStep] = useState<number>(0);
   const [airdropToast, setAirdropToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Base Notifications API States
+  const [notifTitle, setNotifTitle] = useState("🎉 B20 Token Airdrop Claimed!");
+  const [notifMessage, setNotifMessage] = useState("You have received 1,000 $BASE B20 tokens in your Base App wallet.");
+  const [notifTargetPath, setNotifTargetPath] = useState("/airdrop");
+  const [notifRecipients, setNotifRecipients] = useState("0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
+  const [notifApiKey, setNotifApiKey] = useState("");
+  const [notifAppUrl, setNotifAppUrl] = useState("https://brc20-base-explorer.vercel.app");
+  const [notifSending, setNotifSending] = useState(false);
+  const [notifLogs, setNotifLogs] = useState<Array<{ id: string; timestamp: string; title: string; message: string; targetPath: string; sentCount: number; failedCount: number; simulated: boolean }>>([]);
+  const [notifCheckAddr, setNotifCheckAddr] = useState("0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
+  const [notifStatusResult, setNotifStatusResult] = useState<Record<string, unknown> | null>(null);
+  const [notifCheckingStatus, setNotifCheckingStatus] = useState(false);
+  const [notifAudienceList, setNotifAudienceList] = useState<Array<{ address: string; notificationsEnabled: boolean }> | null>(null);
+  const [notifFetchingAudience, setNotifFetchingAudience] = useState(false);
+  const [notifToast, setNotifToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Notification API Handlers
+  const handleCheckUserNotifStatus = async () => {
+    if (!notifCheckAddr) return;
+    setNotifCheckingStatus(true);
+    setNotifStatusResult(null);
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "user_status",
+          walletAddress: notifCheckAddr,
+          apiKey: notifApiKey,
+          appUrl: notifAppUrl
+        })
+      });
+      const data = await res.json().catch(() => ({ error: "Failed to parse API response" }));
+      setNotifStatusResult(data);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to check user notification status";
+      setNotifStatusResult({ error: errMsg });
+    } finally {
+      setNotifCheckingStatus(false);
+    }
+  };
+
+  const handleFetchNotifAudience = async () => {
+    setNotifFetchingAudience(true);
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "get_users",
+          notificationEnabled: true,
+          apiKey: notifApiKey,
+          appUrl: notifAppUrl
+        })
+      });
+      const data = await res.json().catch(() => ({ users: [] }));
+      if (data.users) {
+        setNotifAudienceList(data.users);
+      } else {
+        setNotifAudienceList([]);
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Error";
+      setNotifToast({ message: "Failed to fetch audience list: " + errMsg, type: "error" });
+    } finally {
+      setNotifFetchingAudience(false);
+    }
+  };
+
+  const handleSendNotification = async () => {
+    if (!notifTitle || !notifMessage) {
+      setNotifToast({ message: "Title and message are required.", type: "error" });
+      return;
+    }
+    const rawAddrs = notifRecipients.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+    const addresses = rawAddrs.length > 0 ? rawAddrs : ["0x71C7656EC7ab88b098defB751B7401B5f6d8976F"];
+
+    setNotifSending(true);
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_notification",
+          title: notifTitle,
+          message: notifMessage,
+          targetPath: notifTargetPath,
+          walletAddresses: addresses,
+          apiKey: notifApiKey,
+          appUrl: notifAppUrl
+        })
+      });
+      const data = await res.json().catch(() => ({ error: "Failed to parse API response" }));
+
+      if (data.success || data.simulated) {
+        setNotifToast({
+          message: data.simulated
+            ? `📲 Simulated push notification sent to ${data.sentCount || addresses.length} address(es)!`
+            : `✅ Successfully dispatched Base App push notification to ${data.sentCount} wallet(s)!`,
+          type: "success"
+        });
+        const newLog = {
+          id: Date.now().toString(),
+          timestamp: new Date().toLocaleTimeString(),
+          title: notifTitle,
+          message: notifMessage,
+          targetPath: notifTargetPath,
+          sentCount: data.sentCount || addresses.length,
+          failedCount: data.failedCount || 0,
+          simulated: Boolean(data.simulated)
+        };
+        setNotifLogs((prev) => [newLog, ...prev]);
+      } else {
+        setNotifToast({ message: data.error || "Notification delivery failed.", type: "error" });
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Error";
+      setNotifToast({ message: "Failed to send notification: " + errMsg, type: "error" });
+    } finally {
+      setNotifSending(false);
+    }
+  };
 
   // B20 Launchpad Form States
   const [launchName, setLaunchName] = useState("");
@@ -966,13 +1091,17 @@ export default function Home() {
 
   // Hydration & Storage sync
   useEffect(() => {
-    const storedTokens = localStorage.getItem("brc20_tokens");
-    const storedInscriptions = localStorage.getItem("brc20_inscriptions");
-    const storedLedger = localStorage.getItem("brc20_ledger");
+    try {
+      const storedTokens = localStorage.getItem("brc20_tokens");
+      const storedInscriptions = localStorage.getItem("brc20_inscriptions");
+      const storedLedger = localStorage.getItem("brc20_ledger");
 
-    if (storedTokens) setTokens(JSON.parse(storedTokens));
-    if (storedInscriptions) setInscriptions(JSON.parse(storedInscriptions));
-    if (storedLedger) setLedger(JSON.parse(storedLedger));
+      if (storedTokens) setTokens(JSON.parse(storedTokens));
+      if (storedInscriptions) setInscriptions(JSON.parse(storedInscriptions));
+      if (storedLedger) setLedger(JSON.parse(storedLedger));
+    } catch (err) {
+      console.error("Failed to parse stored JSON from localStorage:", err);
+    }
   }, []);
 
   // Update stats & localStorage on state change
@@ -1381,6 +1510,18 @@ export default function Home() {
               >
                 <Gift className="w-4 h-4 text-purple-300" />
                 Airdrop Suite
+              </button>
+              <button
+                onClick={() => setActiveTab("notifications")}
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all ${
+                  activeTab === "notifications"
+                    ? "bg-amber-600 text-white font-semibold shadow-lg shadow-amber-500/20"
+                    : "text-amber-400 hover:text-amber-300 hover:bg-amber-950/40"
+                }`}
+                id="tab_btn_notifications"
+              >
+                <Bell className="w-4 h-4 text-amber-300" />
+                Base Notifications
               </button>
             </div>
 
@@ -1978,6 +2119,388 @@ export default function Home() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 7. BASE NOTIFICATIONS TAB */}
+            {activeTab === "notifications" && (
+              <div className="flex flex-col gap-6" id="base_notifications_tab_content_1">
+                {/* Notification Toast Alert */}
+                {notifToast && (
+                  <div
+                    className={`p-4 rounded-xl border text-xs font-mono flex items-center justify-between ${
+                      notifToast.type === "success"
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                        : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                    }`}
+                    id="notif_toast_alert_1"
+                  >
+                    <span>{notifToast.message}</span>
+                    <button
+                      onClick={() => setNotifToast(null)}
+                      className="text-slate-400 hover:text-white"
+                      id="close_notif_toast_btn_1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Top Console Header Card */}
+                <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden" id="notif_console_header_1">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400 shadow-inner">
+                        <Bell className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-bold text-white tracking-tight">Base App Notifications Center</h2>
+                          <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono font-bold">
+                            REST API v1
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                          Dispatch native in-app notifications to Base App users who have saved/pinned your mini app. Receive instant user engagement when airdrops drop, payments resolve, or tokens mint!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs font-mono">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 text-[10px]">API Rate Limit</span>
+                        <span className="text-amber-300 font-bold">20 req/min per IP</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* API Credentials & Settings Panel */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4 shadow-xl" id="notif_credentials_card">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Megaphone className="w-4 h-4 text-amber-400" />
+                    <h3 className="font-semibold text-white text-sm">Base Dashboard Project Credentials</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                    <div className="flex flex-col gap-1.5" id="notif_app_url_container">
+                      <label className="text-slate-400 text-[11px] font-medium flex items-center justify-between">
+                        <span>App URL (Registered in Base Dashboard)</span>
+                        <span className="text-[10px] text-amber-400/80">app_url</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={notifAppUrl}
+                        onChange={(e) => setNotifAppUrl(e.target.value)}
+                        placeholder="https://your-app.com"
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-amber-500"
+                        id="notif_app_url_input"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5" id="notif_api_key_container">
+                      <label className="text-slate-400 text-[11px] font-medium flex items-center justify-between">
+                        <span>Base Dashboard API Key (x-api-key)</span>
+                        <span className="text-[10px] text-slate-500">Optional (Simulates if empty)</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={notifApiKey}
+                        onChange={(e) => setNotifApiKey(e.target.value)}
+                        placeholder="Paste BASE_DASHBOARD_API_KEY..."
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-300 focus:outline-none focus:border-amber-500"
+                        id="notif_api_key_input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3 Main Action Columns / Grids */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="notif_actions_grid">
+                  {/* Panel 1: Dispatch Notification Form */}
+                  <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4 shadow-xl" id="notif_dispatch_form_card">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Send className="w-4 h-4 text-amber-400" />
+                        <h3 className="font-semibold text-white text-sm">Send In-App Push Notification</h3>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-bold">
+                        POST /v1/notifications/send
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-4 text-xs font-mono">
+                      {/* Title input */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <label className="font-medium">Notification Title</label>
+                          <span className={`${notifTitle.length > 30 ? "text-rose-400 font-bold" : "text-slate-500"}`}>
+                            {notifTitle.length}/30 chars
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          maxLength={30}
+                          value={notifTitle}
+                          onChange={(e) => setNotifTitle(e.target.value)}
+                          placeholder="e.g. 🎉 Airdrop Received!"
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-amber-500"
+                          id="notif_title_input"
+                        />
+                      </div>
+
+                      {/* Message input */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <label className="font-medium">Notification Message Body</label>
+                          <span className={`${notifMessage.length > 200 ? "text-rose-400 font-bold" : "text-slate-500"}`}>
+                            {notifMessage.length}/200 chars
+                          </span>
+                        </div>
+                        <textarea
+                          rows={3}
+                          maxLength={200}
+                          value={notifMessage}
+                          onChange={(e) => setNotifMessage(e.target.value)}
+                          placeholder="e.g. You have received 1,000 $BASE B20 tokens in your Base App wallet."
+                          className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-amber-500 resize-none"
+                          id="notif_message_input"
+                        />
+                      </div>
+
+                      {/* Target Path */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-400 text-[11px] font-medium flex items-center justify-between">
+                          <span>Target App Route Path (opens on tap)</span>
+                          <span className="text-[10px] text-slate-500">e.g. /airdrop, /ledger</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={notifTargetPath}
+                          onChange={(e) => setNotifTargetPath(e.target.value)}
+                          placeholder="/airdrop"
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 focus:outline-none focus:border-amber-500"
+                          id="notif_target_path_input"
+                        />
+                      </div>
+
+                      {/* Recipient Addresses */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <label className="font-medium">Target Wallet Addresses (comma or line separated)</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ledgerAddrs = ledger.map(() => "0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
+                              const unique = Array.from(new Set(["0x71C7656EC7ab88b098defB751B7401B5f6d8976F", "0x324082901a87b9c0214a1f9028a019e840129bc2", "0x892a014920194b0291a0293019a820391092a01f"]));
+                              setNotifRecipients(unique.join("\n"));
+                            }}
+                            className="text-amber-400 hover:underline cursor-pointer"
+                            id="autofill_notif_addrs_btn"
+                          >
+                            + Autofill Sample Addresses
+                          </button>
+                        </div>
+                        <textarea
+                          rows={3}
+                          value={notifRecipients}
+                          onChange={(e) => setNotifRecipients(e.target.value)}
+                          placeholder="0x71C7656EC7ab88b098defB751B7401B5f6d8976F..."
+                          className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-300 focus:outline-none focus:border-amber-500 resize-none text-[11px]"
+                          id="notif_recipients_input"
+                        />
+                      </div>
+
+                      {/* Send Button */}
+                      <button
+                        onClick={handleSendNotification}
+                        disabled={notifSending}
+                        className="mt-2 w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs font-mono transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                        id="dispatch_notif_submit_btn"
+                      >
+                        {notifSending ? (
+                          <>
+                            <Activity className="w-4 h-4 animate-spin" />
+                            Dispatching Notification via Base API...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            Dispatch Base App Push Notification
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Panel 2: User Status & Audience Tools */}
+                  <div className="flex flex-col gap-6" id="notif_secondary_tools_col">
+                    {/* Check Single User Status Card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-3 shadow-xl" id="notif_user_status_card">
+                      <div className="flex items-center gap-2 border-b border-slate-800 pb-2.5">
+                        <Users className="w-4 h-4 text-amber-400" />
+                        <h3 className="font-semibold text-white text-sm">Check User Opt-In Status</h3>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Verify if a single wallet has pinned your app and enabled notifications.
+                      </p>
+
+                      <div className="flex flex-col gap-2 font-mono text-xs">
+                        <input
+                          type="text"
+                          value={notifCheckAddr}
+                          onChange={(e) => setNotifCheckAddr(e.target.value)}
+                          placeholder="0x..."
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 text-xs focus:outline-none focus:border-amber-500"
+                          id="check_user_status_addr_input"
+                        />
+                        <button
+                          onClick={handleCheckUserNotifStatus}
+                          disabled={notifCheckingStatus}
+                          className="py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-mono font-bold transition-all border border-slate-700 cursor-pointer flex items-center justify-center gap-2"
+                          id="check_user_status_btn"
+                        >
+                          {notifCheckingStatus ? (
+                            <Activity className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                          ) : (
+                            "Check Wallet Status"
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Status Result Display */}
+                      {notifStatusResult && (
+                        <div className="mt-2 p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono flex flex-col gap-2" id="user_status_result_box">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">App Pinned:</span>
+                            <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                              notifStatusResult.appPinned
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                            }`}>
+                              {notifStatusResult.appPinned ? "YES (Saved)" : "NO"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Notifications Enabled:</span>
+                            <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                              notifStatusResult.notificationsEnabled
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                            }`}>
+                              {notifStatusResult.notificationsEnabled ? "ACTIVE 🔔" : "DISABLED"}
+                            </span>
+                          </div>
+                          {Boolean(notifStatusResult.simulated) && (
+                            <span className="text-[10px] text-amber-400/80 italic mt-1">
+                              * Simulated response (configure API Key for live checks)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Audience List Fetcher Card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-3 shadow-xl" id="notif_audience_card">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <Database className="w-4 h-4 text-amber-400" />
+                          <h3 className="font-semibold text-white text-sm">Audience Opt-In List</h3>
+                        </div>
+                        <button
+                          onClick={handleFetchNotifAudience}
+                          disabled={notifFetchingAudience}
+                          className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono font-bold cursor-pointer transition-all flex items-center gap-1"
+                          id="fetch_audience_btn"
+                        >
+                          {notifFetchingAudience ? <Activity className="w-3 h-3 animate-spin" /> : "Fetch List"}
+                        </button>
+                      </div>
+
+                      {notifAudienceList === null ? (
+                        <p className="text-[11px] text-slate-500 font-mono py-2">
+                          Click "Fetch List" to retrieve all wallet addresses opted in for push alerts.
+                        </p>
+                      ) : notifAudienceList.length === 0 ? (
+                        <p className="text-[11px] text-slate-400 font-mono py-2">
+                          No users found. Ensure users have pinned your mini app.
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1 text-[11px] font-mono" id="audience_list_container">
+                          {notifAudienceList.map((user, idx) => (
+                            <div key={idx} className="p-2 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between text-slate-300">
+                              <span className="truncate max-w-[150px]">{user.address}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded font-bold">
+                                Enabled
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dispatch Logs Table */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="notif_logs_card">
+                  <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between" id="notif_logs_header">
+                    <div className="flex items-center gap-2">
+                      <History className="w-5 h-5 text-amber-500" />
+                      <h3 className="font-semibold text-white">Base App Push Notification History</h3>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-800 rounded">
+                      Total Dispatched: {notifLogs.length}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto" id="notif_logs_table_container">
+                    {notifLogs.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500 text-xs font-mono" id="no_notif_logs">
+                        No notifications sent yet in this session. Dispatch your first broadcast above!
+                      </div>
+                    ) : (
+                      <table className="w-full text-left border-collapse" id="notif_logs_table">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-mono bg-slate-950/40">
+                            <th className="py-3 px-6">Timestamp</th>
+                            <th className="py-3 px-6">Title & Message</th>
+                            <th className="py-3 px-6">Target Route</th>
+                            <th className="py-3 px-6 text-center">Audience Delivered</th>
+                            <th className="py-3 px-6 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
+                          {notifLogs.map((log) => (
+                            <tr key={log.id} className="hover:bg-slate-950/30 transition-all">
+                              <td className="py-3 px-6 text-slate-400 text-[11px] whitespace-nowrap">{log.timestamp}</td>
+                              <td className="py-3 px-6">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-amber-300">{log.title}</span>
+                                  <span className="text-[11px] text-slate-400 line-clamp-1">{log.message}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-6 text-slate-400 font-mono text-[11px]">{log.targetPath}</td>
+                              <td className="py-3 px-6 text-center font-bold text-white">
+                                {log.sentCount} wallet(s)
+                              </td>
+                              <td className="py-3 px-6 text-right">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full font-bold border ${
+                                  log.simulated
+                                    ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                }`}>
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  {log.simulated ? "Simulated API" : "Delivered"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2645,6 +3168,387 @@ export default function Home() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 7. BASE NOTIFICATIONS TAB */}
+            {activeTab === "notifications" && (
+              <div className="flex flex-col gap-6" id="base_notifications_tab_content">
+                {/* Notification Toast Alert */}
+                {notifToast && (
+                  <div
+                    className={`p-4 rounded-xl border text-xs font-mono flex items-center justify-between ${
+                      notifToast.type === "success"
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                        : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                    }`}
+                    id="notif_toast_alert"
+                  >
+                    <span>{notifToast.message}</span>
+                    <button
+                      onClick={() => setNotifToast(null)}
+                      className="text-slate-400 hover:text-white"
+                      id="close_notif_toast_btn"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Top Console Header Card */}
+                <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden" id="notif_console_header">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400 shadow-inner">
+                        <Bell className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-bold text-white tracking-tight">Base App Notifications Center</h2>
+                          <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono font-bold">
+                            REST API v1
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                          Dispatch native in-app notifications to Base App users who have saved/pinned your mini app. Receive instant user engagement when airdrops drop, payments resolve, or tokens mint!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs font-mono">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 text-[10px]">API Rate Limit</span>
+                        <span className="text-amber-300 font-bold">20 req/min per IP</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* API Credentials & Settings Panel */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4 shadow-xl" id="notif_credentials_card">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Megaphone className="w-4 h-4 text-amber-400" />
+                    <h3 className="font-semibold text-white text-sm">Base Dashboard Project Credentials</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                    <div className="flex flex-col gap-1.5" id="notif_app_url_container">
+                      <label className="text-slate-400 text-[11px] font-medium flex items-center justify-between">
+                        <span>App URL (Registered in Base Dashboard)</span>
+                        <span className="text-[10px] text-amber-400/80">app_url</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={notifAppUrl}
+                        onChange={(e) => setNotifAppUrl(e.target.value)}
+                        placeholder="https://your-app.com"
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-amber-500"
+                        id="notif_app_url_input"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5" id="notif_api_key_container">
+                      <label className="text-slate-400 text-[11px] font-medium flex items-center justify-between">
+                        <span>Base Dashboard API Key (x-api-key)</span>
+                        <span className="text-[10px] text-slate-500">Optional (Simulates if empty)</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={notifApiKey}
+                        onChange={(e) => setNotifApiKey(e.target.value)}
+                        placeholder="Paste BASE_DASHBOARD_API_KEY..."
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-300 focus:outline-none focus:border-amber-500"
+                        id="notif_api_key_input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3 Main Action Columns / Grids */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="notif_actions_grid">
+                  {/* Panel 1: Dispatch Notification Form */}
+                  <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4 shadow-xl" id="notif_dispatch_form_card">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Send className="w-4 h-4 text-amber-400" />
+                        <h3 className="font-semibold text-white text-sm">Send In-App Push Notification</h3>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-bold">
+                        POST /v1/notifications/send
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-4 text-xs font-mono">
+                      {/* Title input */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <label className="font-medium">Notification Title</label>
+                          <span className={`${notifTitle.length > 30 ? "text-rose-400 font-bold" : "text-slate-500"}`}>
+                            {notifTitle.length}/30 chars
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          maxLength={30}
+                          value={notifTitle}
+                          onChange={(e) => setNotifTitle(e.target.value)}
+                          placeholder="e.g. 🎉 Airdrop Received!"
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-amber-500"
+                          id="notif_title_input"
+                        />
+                      </div>
+
+                      {/* Message input */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <label className="font-medium">Notification Message Body</label>
+                          <span className={`${notifMessage.length > 200 ? "text-rose-400 font-bold" : "text-slate-500"}`}>
+                            {notifMessage.length}/200 chars
+                          </span>
+                        </div>
+                        <textarea
+                          rows={3}
+                          maxLength={200}
+                          value={notifMessage}
+                          onChange={(e) => setNotifMessage(e.target.value)}
+                          placeholder="e.g. You have received 1,000 $BASE B20 tokens in your Base App wallet."
+                          className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-amber-500 resize-none"
+                          id="notif_message_input"
+                        />
+                      </div>
+
+                      {/* Target Path */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-400 text-[11px] font-medium flex items-center justify-between">
+                          <span>Target App Route Path (opens on tap)</span>
+                          <span className="text-[10px] text-slate-500">e.g. /airdrop, /ledger</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={notifTargetPath}
+                          onChange={(e) => setNotifTargetPath(e.target.value)}
+                          placeholder="/airdrop"
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 focus:outline-none focus:border-amber-500"
+                          id="notif_target_path_input"
+                        />
+                      </div>
+
+                      {/* Recipient Addresses */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <label className="font-medium">Target Wallet Addresses (comma or line separated)</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const unique = Array.from(new Set(["0x71C7656EC7ab88b098defB751B7401B5f6d8976F", "0x324082901a87b9c0214a1f9028a019e840129bc2", "0x892a014920194b0291a0293019a820391092a01f"]));
+                              setNotifRecipients(unique.join("\n"));
+                            }}
+                            className="text-amber-400 hover:underline cursor-pointer"
+                            id="autofill_notif_addrs_btn"
+                          >
+                            + Autofill Sample Addresses
+                          </button>
+                        </div>
+                        <textarea
+                          rows={3}
+                          value={notifRecipients}
+                          onChange={(e) => setNotifRecipients(e.target.value)}
+                          placeholder="0x71C7656EC7ab88b098defB751B7401B5f6d8976F..."
+                          className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-300 focus:outline-none focus:border-amber-500 resize-none text-[11px]"
+                          id="notif_recipients_input"
+                        />
+                      </div>
+
+                      {/* Send Button */}
+                      <button
+                        onClick={handleSendNotification}
+                        disabled={notifSending}
+                        className="mt-2 w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs font-mono transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                        id="dispatch_notif_submit_btn"
+                      >
+                        {notifSending ? (
+                          <>
+                            <Activity className="w-4 h-4 animate-spin" />
+                            Dispatching Notification via Base API...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            Dispatch Base App Push Notification
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Panel 2: User Status & Audience Tools */}
+                  <div className="flex flex-col gap-6" id="notif_secondary_tools_col">
+                    {/* Check Single User Status Card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-3 shadow-xl" id="notif_user_status_card">
+                      <div className="flex items-center gap-2 border-b border-slate-800 pb-2.5">
+                        <Users className="w-4 h-4 text-amber-400" />
+                        <h3 className="font-semibold text-white text-sm">Check User Opt-In Status</h3>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Verify if a single wallet has pinned your app and enabled notifications.
+                      </p>
+
+                      <div className="flex flex-col gap-2 font-mono text-xs">
+                        <input
+                          type="text"
+                          value={notifCheckAddr}
+                          onChange={(e) => setNotifCheckAddr(e.target.value)}
+                          placeholder="0x..."
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 text-xs focus:outline-none focus:border-amber-500"
+                          id="check_user_status_addr_input"
+                        />
+                        <button
+                          onClick={handleCheckUserNotifStatus}
+                          disabled={notifCheckingStatus}
+                          className="py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-mono font-bold transition-all border border-slate-700 cursor-pointer flex items-center justify-center gap-2"
+                          id="check_user_status_btn"
+                        >
+                          {notifCheckingStatus ? (
+                            <Activity className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                          ) : (
+                            "Check Wallet Status"
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Status Result Display */}
+                      {notifStatusResult && (
+                        <div className="mt-2 p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono flex flex-col gap-2" id="user_status_result_box">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">App Pinned:</span>
+                            <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                              notifStatusResult.appPinned
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                            }`}>
+                              {notifStatusResult.appPinned ? "YES (Saved)" : "NO"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Notifications Enabled:</span>
+                            <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                              notifStatusResult.notificationsEnabled
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                            }`}>
+                              {notifStatusResult.notificationsEnabled ? "ACTIVE 🔔" : "DISABLED"}
+                            </span>
+                          </div>
+                          {Boolean(notifStatusResult.simulated) && (
+                            <span className="text-[10px] text-amber-400/80 italic mt-1">
+                              * Simulated response (configure API Key for live checks)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Audience List Fetcher Card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-3 shadow-xl" id="notif_audience_card">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <Database className="w-4 h-4 text-amber-400" />
+                          <h3 className="font-semibold text-white text-sm">Audience Opt-In List</h3>
+                        </div>
+                        <button
+                          onClick={handleFetchNotifAudience}
+                          disabled={notifFetchingAudience}
+                          className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono font-bold cursor-pointer transition-all flex items-center gap-1"
+                          id="fetch_audience_btn"
+                        >
+                          {notifFetchingAudience ? <Activity className="w-3 h-3 animate-spin" /> : "Fetch List"}
+                        </button>
+                      </div>
+
+                      {notifAudienceList === null ? (
+                        <p className="text-[11px] text-slate-500 font-mono py-2">
+                          Click "Fetch List" to retrieve all wallet addresses opted in for push alerts.
+                        </p>
+                      ) : notifAudienceList.length === 0 ? (
+                        <p className="text-[11px] text-slate-400 font-mono py-2">
+                          No users found. Ensure users have pinned your mini app.
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1 text-[11px] font-mono" id="audience_list_container">
+                          {notifAudienceList.map((user, idx) => (
+                            <div key={idx} className="p-2 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between text-slate-300">
+                              <span className="truncate max-w-[150px]">{user.address}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded font-bold">
+                                Enabled
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dispatch Logs Table */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="notif_logs_card">
+                  <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between" id="notif_logs_header">
+                    <div className="flex items-center gap-2">
+                      <History className="w-5 h-5 text-amber-500" />
+                      <h3 className="font-semibold text-white">Base App Push Notification History</h3>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-800 rounded">
+                      Total Dispatched: {notifLogs.length}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto" id="notif_logs_table_container">
+                    {notifLogs.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500 text-xs font-mono" id="no_notif_logs">
+                        No notifications sent yet in this session. Dispatch your first broadcast above!
+                      </div>
+                    ) : (
+                      <table className="w-full text-left border-collapse" id="notif_logs_table">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-mono bg-slate-950/40">
+                            <th className="py-3 px-6">Timestamp</th>
+                            <th className="py-3 px-6">Title & Message</th>
+                            <th className="py-3 px-6">Target Route</th>
+                            <th className="py-3 px-6 text-center">Audience Delivered</th>
+                            <th className="py-3 px-6 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
+                          {notifLogs.map((log) => (
+                            <tr key={log.id} className="hover:bg-slate-950/30 transition-all">
+                              <td className="py-3 px-6 text-slate-400 text-[11px] whitespace-nowrap">{log.timestamp}</td>
+                              <td className="py-3 px-6">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-amber-300">{log.title}</span>
+                                  <span className="text-[11px] text-slate-400 line-clamp-1">{log.message}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-6 text-slate-400 font-mono text-[11px]">{log.targetPath}</td>
+                              <td className="py-3 px-6 text-center font-bold text-white">
+                                {log.sentCount} wallet(s)
+                              </td>
+                              <td className="py-3 px-6 text-right">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full font-bold border ${
+                                  log.simulated
+                                    ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                }`}>
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  {log.simulated ? "Simulated API" : "Delivered"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
               </div>

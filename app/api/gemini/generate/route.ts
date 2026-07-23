@@ -17,7 +17,8 @@ function getAiClient(): GoogleGenAI {
 
 export async function POST(req: NextRequest) {
   try {
-    const { action, ticker, maxSupply, mintLimit, concept, customSlogan } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { action, ticker, maxSupply, mintLimit, concept, customSlogan } = body;
     const ai = getAiClient();
 
     let systemPrompt = "";
@@ -83,7 +84,16 @@ JSON Schema should be:
     });
 
     const responseText = response.text || "{}";
-    const data = JSON.parse(responseText.trim());
+    let cleanedText = responseText.trim();
+    if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+    }
+    let data;
+    try {
+      data = JSON.parse(cleanedText);
+    } catch {
+      data = { error: "Failed to parse AI response as JSON", rawText: responseText };
+    }
     return NextResponse.json(data);
 
   } catch (error: any) {
