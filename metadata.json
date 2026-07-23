@@ -1,6 +1,6 @@
 {
-  "name": "Base BRC20 Launchpad",
-  "description": "An interactive, fully featured BRC-20 style inscription and fair-launch platform on Base, integrated with Farcaster and Gemini AI.",
+  "name": "BRC-20 Explorer & Ledger",
+  "description": "An interactive dashboard to explore BRC-20 tokens with mint progress sparklines, inscription logs, account ledger balances, and JSON export utilities.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

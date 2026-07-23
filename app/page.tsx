@@ -1,1911 +1,886 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { sdk } from "@farcaster/miniapp-sdk";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Sparkline } from "@/components/Sparkline";
-import { 
-  Rocket, 
-  Coins, 
-  Database, 
-  Cpu, 
-  Wallet, 
-  Flame, 
-  CheckCircle, 
-  AlertCircle, 
-  Search, 
-  RefreshCw, 
-  Send, 
-  FileText, 
-  BrainCircuit, 
-  Sparkles, 
-  ArrowRight, 
-  Info, 
-  TrendingUp, 
-  User, 
-  Layers,
-  Copy,
-  Check
+import {
+  Search,
+  Download,
+  PlusCircle,
+  Coins,
+  FileText,
+  Database,
+  TrendingUp,
+  CheckCircle2,
+  Activity,
+  Wallet,
+  Send,
+  History,
+  Sparkles,
+  Info
 } from "lucide-react";
+import Sparkline from "@/components/Sparkline";
 
-// Types
-interface Brc20Token {
+// Interface Definitions
+interface BRC20Token {
   ticker: string;
-  name: string;
-  maxSupply: number;
+  totalSupply: number;
+  maxMint: number;
   mintLimit: number;
   decimals: number;
-  mintedAmount: number;
-  creator: string;
-  tagline: string;
-  concept?: string;
-  createdAt: string;
-  txHash?: string;
+  minted: number;
+  holders: number;
+  transactions: number;
+  deployer: string;
+  createdBlock: number;
+  sparklineData: { value: number }[];
 }
 
-interface InscriptionLog {
+interface Inscription {
   id: string;
-  timestamp: string;
-  type: "deploy" | "mint" | "transfer";
+  number: number;
   ticker: string;
-  amount?: number;
-  from: string;
-  to: string;
+  amount: number;
+  op: "deploy" | "mint" | "transfer";
+  timestamp: string;
   txHash: string;
 }
 
-interface GeminiAnalysis {
+interface LedgerBalance {
   ticker: string;
-  memeScore: number;
-  memeAnalysis: string;
-  onchainScore: number;
-  onchainViability: string;
-  suggestedSlogans: string[];
-  aiRecommendedPriceFloor: string;
-  bullishScenario: string;
-  bearishScenario: string;
+  overall: number;
+  transferable: number;
+  available: number;
+  lastUpdated: string;
 }
 
-interface GeminiSuggestion {
-  ticker: string;
-  name: string;
-  maxSupply: number;
-  mintLimit: number;
-  tagline: string;
-  concept: string;
-}
-
-// Initial Preset Tokens
-const INITIAL_TOKENS: Brc20Token[] = [
+// Initial realistic BRC-20 Mock Data
+const INITIAL_TOKENS: BRC20Token[] = [
   {
-    ticker: "BASE",
-    name: "Base Fair Inscription",
-    maxSupply: 21000000,
+    ticker: "ordi",
+    totalSupply: 21000000,
+    maxMint: 21000000,
     mintLimit: 1000,
     decimals: 18,
-    mintedAmount: 18742000,
-    creator: "0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBa6548",
-    tagline: "The base of all fair launches on the Base chain.",
-    concept: "The foundational fair launch token representing community decentralization.",
-    createdAt: "2026-06-15T12:00:00Z"
+    minted: 21000000,
+    holders: 14205,
+    transactions: 254109,
+    deployer: "bc1p8g...9p8x",
+    createdBlock: 779301,
+    sparklineData: [
+      { value: 10 }, { value: 15 }, { value: 30 }, { value: 45 }, { value: 60 },
+      { value: 80 }, { value: 95 }, { value: 100 }, { value: 100 }, { value: 100 }
+    ]
   },
   {
-    ticker: "COIN",
-    name: "Onchain Standard Coin",
-    maxSupply: 1000000000,
-    mintLimit: 10000,
+    ticker: "sats",
+    totalSupply: 2100000000000000,
+    maxMint: 2100000000000000,
+    mintLimit: 100000000,
     decimals: 18,
-    mintedAmount: 412500000,
-    creator: "0x690B9544763811173fF87c405F87c8d948E48aB3",
-    tagline: "Unifying Coinbase Smart Wallet users with fair micro-inscriptions.",
-    concept: "A utility memecoin targeted at smart wallets and Coinbase integrations.",
-    createdAt: "2026-06-20T14:30:00Z"
+    minted: 2100000000000000,
+    holders: 42109,
+    transactions: 1045920,
+    deployer: "bc1p3m...7v9w",
+    createdBlock: 780122,
+    sparklineData: [
+      { value: 5 }, { value: 12 }, { value: 20 }, { value: 35 }, { value: 50 },
+      { value: 65 }, { value: 80 }, { value: 90 }, { value: 98 }, { value: 100 }
+    ]
   },
   {
-    ticker: "MINT",
-    name: "Hyper Mint",
-    maxSupply: 50000000,
-    mintLimit: 5000,
+    ticker: "rats",
+    totalSupply: 1000000000000,
+    maxMint: 1000000000000,
+    mintLimit: 1000000,
     decimals: 18,
-    mintedAmount: 49925000,
-    creator: "0x1247a48edbf130d542b31d3e85d5d529002a043d",
-    tagline: "Pure onchain friction. Speedrun the supply limit.",
-    concept: "A high-velocity fair launch experiment with rapid block emission.",
-    createdAt: "2026-07-01T08:15:00Z"
+    minted: 1000000000000,
+    holders: 18450,
+    transactions: 412502,
+    deployer: "bc1q9y...5f2k",
+    createdBlock: 785402,
+    sparklineData: [
+      { value: 20 }, { value: 40 }, { value: 65 }, { value: 85 }, { value: 100 },
+      { value: 100 }, { value: 100 }, { value: 100 }, { value: 100 }, { value: 100 }
+    ]
   },
   {
-    ticker: "GIGA",
-    name: "GigaChad Inscription",
-    maxSupply: 69420000,
-    mintLimit: 4200,
+    ticker: "base",
+    totalSupply: 100000000,
+    maxMint: 100000000,
+    mintLimit: 1000,
     decimals: 18,
-    mintedAmount: 9450000,
-    creator: "0x760B0447963811173fF87c3d2f93BcA098BACF17",
-    tagline: "Extremely bullish, zero developer taxes, maximum fair chad energy.",
-    concept: "A community tribute to high-conviction onchain chads.",
-    createdAt: "2026-07-05T20:00:00Z"
+    minted: 45200000,
+    holders: 3540,
+    transactions: 12904,
+    deployer: "bc1p7a...2h5n",
+    createdBlock: 850124,
+    sparklineData: [
+      { value: 12 }, { value: 15 }, { value: 18 }, { value: 24 }, { value: 29 },
+      { value: 34 }, { value: 39 }, { value: 42 }, { value: 44 }, { value: 45.2 }
+    ]
   },
   {
-    ticker: "GEMI",
-    name: "Gemini AI Core",
-    maxSupply: 50000000,
-    mintLimit: 2500,
+    ticker: "spark",
+    totalSupply: 50000000,
+    maxMint: 50000000,
+    mintLimit: 500,
     decimals: 18,
-    mintedAmount: 32545000,
-    creator: "0x0000000000000000000000000000000000000000",
-    tagline: "Onchain intelligence, indexed by standard prompt schemas.",
-    concept: "The first BRC20 designed and optimized directly by Gemini Flash.",
-    createdAt: "2026-07-10T11:45:00Z"
+    minted: 12500000,
+    holders: 1850,
+    transactions: 5820,
+    deployer: "bc1p4k...9q2m",
+    createdBlock: 854201,
+    sparklineData: [
+      { value: 1 }, { value: 3 }, { value: 5 }, { value: 8 }, { value: 11 },
+      { value: 14 }, { value: 18 }, { value: 21 }, { value: 23 }, { value: 25 }
+    ]
+  },
+  {
+    ticker: "farc",
+    totalSupply: 10000000,
+    maxMint: 10000000,
+    mintLimit: 100,
+    decimals: 18,
+    minted: 9800000,
+    holders: 4100,
+    transactions: 22409,
+    deployer: "bc1q8t...0v2a",
+    createdBlock: 849301,
+    sparklineData: [
+      { value: 50 }, { value: 55 }, { value: 60 }, { value: 72 }, { value: 81 },
+      { value: 89 }, { value: 92 }, { value: 95 }, { value: 97 }, { value: 98 }
+    ]
   }
 ];
 
-const INITIAL_LOGS: InscriptionLog[] = [
+const INITIAL_INSCRIPTIONS: Inscription[] = [
   {
-    id: "l1",
-    timestamp: "2026-07-12T22:50:11Z",
-    type: "mint",
-    ticker: "BASE",
+    id: "e4f0a203f19bc0319df6b490a6e8b2b76a5b4c10a300d892019ab7612f10b2aci0",
+    number: 541092,
+    ticker: "ordi",
     amount: 1000,
-    from: "0x3B67...7eE2",
-    to: "0x3B67...7eE2",
-    txHash: "0x2e1b...917d"
+    op: "mint",
+    timestamp: "2026-07-10 14:32:05",
+    txHash: "7b1c8c8d...df7f"
   },
   {
-    id: "l2",
-    timestamp: "2026-07-12T22:51:04Z",
-    type: "mint",
-    ticker: "GIGA",
-    amount: 4200,
-    from: "0x8a7b...4655",
-    to: "0x8a7b...4655",
-    txHash: "0x7c43...572f"
+    id: "a7c2f0d9a6b104cde6c57ce52e1a3b8d9e068f8e06a30c5e940d055f940d055ai0",
+    number: 541890,
+    ticker: "ordi",
+    amount: 1000,
+    op: "mint",
+    timestamp: "2026-07-11 09:15:42",
+    txHash: "4c9d7e6f...8a2b"
   },
   {
-    id: "l3",
-    timestamp: "2026-07-12T22:52:19Z",
-    type: "deploy",
-    ticker: "GEMI",
-    from: "0x0000...0000",
-    to: "0x0000...0000",
-    txHash: "0x96bc...32d5"
-  },
-  {
-    id: "l4",
-    timestamp: "2026-07-12T22:53:45Z",
-    type: "transfer",
-    ticker: "BASE",
-    amount: 5000,
-    from: "0x3B67...7eE2",
-    to: "0x690B...48aB",
-    txHash: "0xe135...1b0c"
+    id: "9c3f4e2b0a1d4c8e7b9a5f6e8c0d9a3b8e7f6e5d4c3b2a1e0f9d8c7b6a5e4d3ci0",
+    number: 589412,
+    ticker: "base",
+    amount: 1000,
+    op: "mint",
+    timestamp: "2026-07-12 18:44:19",
+    txHash: "9a2f1b4c...7d6e"
   }
 ];
 
-// Helper to generate deterministic recent minting activity sparkline data
-export function getSparklineData(token: Brc20Token, logs: InscriptionLog[]) {
-  const points = 8;
-  const data = [];
-  
-  // Seed a stable hash based on ticker
-  let hash = 0;
-  for (let i = 0; i < token.ticker.length; i++) {
-    hash = token.ticker.charCodeAt(i) + ((hash << 5) - hash);
+const INITIAL_LEDGER: LedgerBalance[] = [
+  {
+    ticker: "ordi",
+    overall: 2000,
+    transferable: 0,
+    available: 2000,
+    lastUpdated: "2026-07-11 09:15:42"
+  },
+  {
+    ticker: "base",
+    overall: 1000,
+    transferable: 0,
+    available: 1000,
+    lastUpdated: "2026-07-12 18:44:19"
   }
-  
-  const growthType = Math.abs(hash) % 3; // 0 = linear, 1 = S-curve, 2 = spikey
-  const currentPercent = (token.mintedAmount / token.maxSupply) * 100;
-  const tickerMints = logs.filter(log => log.ticker === token.ticker && log.type === "mint");
-  const recentMintCount = tickerMints.length;
-  
-  for (let i = 0; i < points; i++) {
-    const t = i / (points - 1); // 0 to 1
-    
-    let baseActivity = 0;
-    if (growthType === 0) {
-      baseActivity = 25 + Math.sin(t * Math.PI * 2) * 8;
-    } else if (growthType === 1) {
-      const mean = 0.5;
-      const stdDev = 0.2;
-      baseActivity = 60 * Math.exp(-Math.pow(t - mean, 2) / (2 * Math.pow(stdDev, 2))) + 10;
-    } else {
-      baseActivity = 70 * Math.exp(-t * 2.2) + 12;
-    }
-    
-    // Add stable deterministic noise
-    const noise = Math.sin(i * 1.8 + (hash % 8)) * 10;
-    let activity = Math.max(5, baseActivity + noise);
-    
-    // Scale by minted completion
-    if (currentPercent >= 100) {
-      if (i === points - 1) {
-        activity = 0;
-      } else {
-        activity = activity * (1 - t) * 0.5;
-      }
-    } else {
-      activity = activity * (0.3 + (currentPercent / 100) * 0.7);
-    }
-    
-    // Boost latest values with actual session logs
-    if (i >= points - 2 && recentMintCount > 0) {
-      activity += recentMintCount * 30;
-    }
-    
-    data.push({
-      interval: `Interval ${i + 1}`,
-      volume: Math.round(activity),
-    });
-  }
-  
-  return data;
-}
+];
 
 export default function Home() {
-  // Farcaster SDK Readiness
+  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger">("tokens");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [mintFilter, setMintFilter] = useState<"all" | "completed" | "inprogress">("all");
+
+  // Main Persistent State
+  const [tokens, setTokens] = useState<BRC20Token[]>(INITIAL_TOKENS);
+  const [inscriptions, setInscriptions] = useState<Inscription[]>(INITIAL_INSCRIPTIONS);
+  const [ledger, setLedger] = useState<LedgerBalance[]>(INITIAL_LEDGER);
+
+  // Inscribe simulator fields
+  const [simTicker, setSimTicker] = useState("base");
+  const [simAmount, setSimAmount] = useState<number>(1000);
+  const [simOp, setSimOp] = useState<"mint" | "transfer">("mint");
+  const [simSuccessMsg, setSimSuccessMsg] = useState<string | null>(null);
+
+  // Stats Counters
+  const [stats, setStats] = useState({
+    totalInscriptions: INITIAL_INSCRIPTIONS.length,
+    activeBalances: INITIAL_LEDGER.length,
+    totalVolume: 3000
+  });
+
+  // Hydration & Storage sync
   useEffect(() => {
-    const initSdk = async () => {
-      try {
-        await sdk.actions.ready();
-      } catch (err) {
-        console.warn("Farcaster SDK is not available outside of Farcaster Client", err);
-      }
-    };
-    initSdk();
+    const storedTokens = localStorage.getItem("brc20_tokens");
+    const storedInscriptions = localStorage.getItem("brc20_inscriptions");
+    const storedLedger = localStorage.getItem("brc20_ledger");
+
+    if (storedTokens) setTokens(JSON.parse(storedTokens));
+    if (storedInscriptions) setInscriptions(JSON.parse(storedInscriptions));
+    if (storedLedger) setLedger(JSON.parse(storedLedger));
   }, []);
 
-  // Application state
-  const [activeTab, setActiveTab] = useState<"mint" | "deploy" | "ledger" | "portfolio">("mint");
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [chainId, setChainId] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [copiedText, setCopiedText] = useState<string | null>(null);
+  // Update stats & localStorage on state change
+  useEffect(() => {
+    localStorage.setItem("brc20_tokens", JSON.stringify(tokens));
+    localStorage.setItem("brc20_inscriptions", JSON.stringify(inscriptions));
+    localStorage.setItem("brc20_ledger", JSON.stringify(ledger));
 
-  // Core BRC20 Token database state (with LocalStorage persistence)
-  const [tokens, setTokens] = useState<Brc20Token[]>(() => {
-    if (typeof window !== "undefined") {
-      const storedTokens = localStorage.getItem("base_brc20_tokens");
-      if (storedTokens) {
-        try {
-          return JSON.parse(storedTokens);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-    return INITIAL_TOKENS;
-  });
+    const totalVol = ledger.reduce((acc, curr) => acc + curr.overall, 0);
+    setStats({
+      totalInscriptions: inscriptions.length,
+      activeBalances: ledger.length,
+      totalVolume: totalVol
+    });
+  }, [tokens, inscriptions, ledger]);
 
-  const [logs, setLogs] = useState<InscriptionLog[]>(() => {
-    if (typeof window !== "undefined") {
-      const storedLogs = localStorage.getItem("base_brc20_logs");
-      if (storedLogs) {
-        try {
-          return JSON.parse(storedLogs);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-    return INITIAL_LOGS;
-  });
-
-  const [userBalances, setUserBalances] = useState<{ [ticker: string]: number }>(() => {
-    if (typeof window !== "undefined") {
-      const storedBalances = localStorage.getItem("base_brc20_balances");
-      if (storedBalances) {
-        try {
-          return JSON.parse(storedBalances);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-    return {
-      "BASE": 3000,
-      "MINT": 15000
-    };
-  });
-
-  const saveToLocalStorage = (newTokens: Brc20Token[], newLogs: InscriptionLog[], newBalances: { [ticker: string]: number }) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("base_brc20_tokens", JSON.stringify(newTokens));
-      localStorage.setItem("base_brc20_logs", JSON.stringify(newLogs));
-      localStorage.setItem("base_brc20_balances", JSON.stringify(newBalances));
-    }
+  // Handler for exporting Inscriptions list to JSON
+  const handleExportInscriptions = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(inscriptions, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `brc20_inscriptions_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   };
 
-  // Search & Filter
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "active" | "completed">("all");
+  // Handler for exporting Ledger to JSON
+  const handleExportLedger = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(ledger, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `brc20_ledger_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
 
-  // Deployment form state
-  const [deployTicker, setDeployTicker] = useState("");
-  const [deployName, setDeployName] = useState("");
-  const [deployMaxSupply, setDeployMaxSupply] = useState("21000000");
-  const [deployLimit, setDeployLimit] = useState("1000");
-  const [deployConcept, setDeployConcept] = useState("");
-  
-  // Mint execution modal / state
-  const [selectedMintToken, setSelectedMintToken] = useState<Brc20Token | null>(null);
-  const [mintCount, setMintCount] = useState(1); // Number of mint transactions to bundle
-  const [isMinting, setIsMinting] = useState(false);
-  const [mintStatusText, setMintStatusText] = useState("");
-  const [mintTxHash, setMintTxHash] = useState<string | null>(null);
+  // Handler for simulation inscribing
+  const handleSimulateInscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!simTicker || simAmount <= 0) return;
 
-  // Transfer state
-  const [transferToken, setTransferToken] = useState<string>("");
-  const [transferAmount, setTransferAmount] = useState<string>("");
-  const [transferRecipient, setTransferRecipient] = useState<string>("");
-  const [isTransferring, setIsTransferring] = useState(false);
-  const [transferTxHash, setTransferTxHash] = useState<string | null>(null);
-  const [transferError, setTransferError] = useState<string | null>(null);
+    const formattedTicker = simTicker.toLowerCase().trim();
+    const matchedToken = tokens.find((t) => t.ticker === formattedTicker);
 
-  // Gemini AI state
-  const [aiAnalysis, setAiAnalysis] = useState<GeminiAnalysis | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<GeminiSuggestion[]>([]);
-  const [isSuggesting, setIsSuggesting] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
+    if (!matchedToken) {
+      alert(`Token $${formattedTicker} does not exist. Please use an existing ticker like "base", "spark", "farc", etc.`);
+      return;
+    }
 
-  // Log scanner feed simulator
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate real-time on-chain inscription logs
-      const randomToken = tokens[Math.floor(Math.random() * tokens.length)];
-      if (!randomToken) return;
+    // Verify Mint Limit
+    if (simOp === "mint" && simAmount > matchedToken.mintLimit) {
+      alert(`Mint amount exceeds the limit of ${matchedToken.mintLimit} per mint for $${formattedTicker}.`);
+      return;
+    }
 
-      const randomType = Math.random() > 0.3 ? "mint" : "transfer";
-      const randomAmount = Math.floor(Math.random() * 4 + 1) * randomToken.mintLimit;
-      const mockAddresses = [
-        "0x3B67d4E98420D3CeeCA3bB89Eec2D20099201D21",
-        "0x8a7b2274797065223a22776562617574686e2e67",
-        "0x690B9544763811173fF87c405F87c8d948E48aB3",
-        "0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBa6548"
-      ];
-      const fromAddr = mockAddresses[Math.floor(Math.random() * mockAddresses.length)];
-      let toAddr = fromAddr;
-      if (randomType === "transfer") {
-        toAddr = mockAddresses.filter(a => a !== fromAddr)[Math.floor(Math.random() * (mockAddresses.length - 1))];
+    // Verify Supply cap for Mint
+    if (simOp === "mint" && matchedToken.minted + simAmount > matchedToken.totalSupply) {
+      alert(`Mint amount exceeds remaining supply of ${matchedToken.totalSupply - matchedToken.minted} for $${formattedTicker}.`);
+      return;
+    }
+
+    // Verify Available Balance for Transfer
+    if (simOp === "transfer") {
+      const userBalance = ledger.find((b) => b.ticker === formattedTicker);
+      if (!userBalance || userBalance.available < simAmount) {
+        alert(`Insufficient available balance of $${formattedTicker} to transfer. Available: ${userBalance?.available || 0}`);
+        return;
       }
+    }
 
-      // Generate mock tx hash
-      const randomHash = "0x" + Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("") + "...";
+    // Generate deterministic tx hash & inscription ID
+    const randomHex = () => Math.random().toString(16).substring(2, 10);
+    const newTxHash = `${randomHex()}${randomHex()}...${randomHex()}`;
+    const newInscriptionId = `${randomHex()}${randomHex()}${randomHex()}${randomHex()}i0`;
+    const newInscriptionNumber = inscriptions.length > 0 ? Math.max(...inscriptions.map(i => i.number)) + 1 : 100001;
 
-      const newLog: InscriptionLog = {
-        id: "l_sim_" + Date.now(),
-        timestamp: new Date().toISOString(),
-        type: randomType as "mint" | "transfer",
-        ticker: randomToken.ticker,
-        amount: randomType === "mint" ? randomToken.mintLimit : randomAmount,
-        from: fromAddr.slice(0, 6) + "..." + fromAddr.slice(-4),
-        to: toAddr.slice(0, 6) + "..." + toAddr.slice(-4),
-        txHash: randomHash
-      };
+    const nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
 
-      // Also increment minted amount for simulated tokens
-      setTokens(prev => {
-        const updated = prev.map(t => {
-          if (t.ticker === randomToken.ticker && randomType === "mint") {
-            const nextAmt = Math.min(t.maxSupply, t.mintedAmount + t.mintLimit);
-            return { ...t, mintedAmount: nextAmt };
+    const newInsc: Inscription = {
+      id: newInscriptionId,
+      number: newInscriptionNumber,
+      ticker: formattedTicker,
+      amount: simAmount,
+      op: simOp,
+      timestamp: nowStr,
+      txHash: newTxHash
+    };
+
+    // Update Inscriptions list
+    setInscriptions((prev) => [newInsc, ...prev]);
+
+    // Update Balances
+    setLedger((prevLedger) => {
+      const existing = prevLedger.find((b) => b.ticker === formattedTicker);
+      if (existing) {
+        return prevLedger.map((b) => {
+          if (b.ticker === formattedTicker) {
+            const overallDiff = simOp === "mint" ? simAmount : -simAmount;
+            const availableDiff = simOp === "mint" ? simAmount : -simAmount;
+            return {
+              ...b,
+              overall: Math.max(0, b.overall + overallDiff),
+              available: Math.max(0, b.available + availableDiff),
+              lastUpdated: nowStr
+            };
+          }
+          return b;
+        });
+      } else {
+        if (simOp === "transfer") return prevLedger; // should not happen due to check
+        return [
+          ...prevLedger,
+          {
+            ticker: formattedTicker,
+            overall: simAmount,
+            transferable: 0,
+            available: simAmount,
+            lastUpdated: nowStr
+          }
+        ];
+      }
+    });
+
+    // Update Token minted status
+    if (simOp === "mint") {
+      setTokens((prevTokens) =>
+        prevTokens.map((t) => {
+          if (t.ticker === formattedTicker) {
+            const nextMinted = Math.min(t.totalSupply, t.minted + simAmount);
+            // Append value to sparkline
+            const progressPercent = (nextMinted / t.totalSupply) * 100;
+            const nextSparkline = [...t.sparklineData.slice(1), { value: progressPercent }];
+            return {
+              ...t,
+              minted: nextMinted,
+              sparklineData: nextSparkline,
+              holders: t.holders + (ledger.some(l => l.ticker === formattedTicker) ? 0 : 1),
+              transactions: t.transactions + 1
+            };
           }
           return t;
-        });
-        localStorage.setItem("base_brc20_tokens", JSON.stringify(updated));
-        return updated;
-      });
-
-      setLogs(prev => {
-        const nextLogs = [newLog, ...prev.slice(0, 30)];
-        localStorage.setItem("base_brc20_logs", JSON.stringify(nextLogs));
-        return nextLogs;
-      });
-
-    }, 20000); // every 20 seconds mock transaction triggers
-
-    return () => clearInterval(interval);
-  }, [tokens]);
-
-  // Wallet Actions
-  const handleConnectWallet = async () => {
-    setIsConnecting(true);
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      try {
-        const accounts = await (window as any).ethereum.request({ method: "eth_requestAccounts" });
-        setWalletAddress(accounts[0]);
-        const chain = await (window as any).ethereum.request({ method: "eth_chainId" });
-        setChainId(chain);
-        
-        // Listen to account changes
-        (window as any).ethereum.on("accountsChanged", (accs: string[]) => {
-          if (accs.length === 0) {
-            setWalletAddress(null);
-          } else {
-            setWalletAddress(accs[0]);
-          }
-        });
-        
-        // Listen to chain changes
-        (window as any).ethereum.on("chainChanged", (hexId: string) => {
-          setChainId(hexId);
-        });
-      } catch (err) {
-        console.error("Wallet connection failed:", err);
-      } finally {
-        setIsConnecting(false);
-      }
-    } else {
-      // Simulation mode activation
-      setTimeout(() => {
-        const randomSimAddress = "0x58fE" + Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16)).join("") + "..." + Array.from({ length: 4 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-        setWalletAddress(randomSimAddress);
-        setChainId("0x2105"); // Base Mainnet hex ID
-        setIsConnecting(false);
-      }, 800);
+        })
+      );
     }
+
+    setSimSuccessMsg(`Successfully inscribed ${simOp.toUpperCase()} for ${simAmount} $${formattedTicker}!`);
+    setTimeout(() => setSimSuccessMsg(null), 4000);
   };
 
-  const handleDisconnectWallet = () => {
-    setWalletAddress(null);
-    setChainId(null);
-  };
-
-  const handleSwitchToBase = async () => {
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      try {
-        await (window as any).ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x2105" }], // Base mainnet (8453)
-        });
-      } catch (switchError: any) {
-        if (switchError.code === 4902) {
-          try {
-            await (window as any).ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: "0x2105",
-                  chainName: "Base Mainnet",
-                  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-                  rpcUrls: ["https://mainnet.base.org"],
-                  blockExplorerUrls: ["https://basescan.org"],
-                },
-              ],
-            });
-          } catch (addError) {
-            console.error("Failed to add Base network:", addError);
-          }
-        }
-      }
-    } else {
-      setChainId("0x2105");
-    }
-  };
-
-  // Copy string to clipboard helper
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedText(label);
-    setTimeout(() => setCopiedText(null), 2000);
-  };
-
-  // Convert string to hex safely
-  const textToHex = (text: string): string => {
-    let hex = "";
-    for (let i = 0; i < text.length; i++) {
-      hex += text.charCodeAt(i).toString(16).padStart(2, "0");
-    }
-    return "0x" + hex;
-  };
-
-  // Trigger Gemini analysis
-  const analyzeTokenWithAI = async () => {
-    if (!deployTicker) return;
-    setIsAnalyzing(true);
-    setAiAnalysis(null);
-    try {
-      const response = await fetch("/api/gemini/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "analyze",
-          ticker: deployTicker.toUpperCase(),
-          maxSupply: Number(deployMaxSupply),
-          mintLimit: Number(deployLimit),
-          concept: deployConcept,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setAiAnalysis(data);
-      } else {
-        throw new Error(data.error || "Analysis failed");
-      }
-    } catch (e) {
-      console.error(e);
-      // Fallback response for playground robustness
-      setAiAnalysis({
-        ticker: deployTicker.toUpperCase(),
-        memeScore: Math.floor(Math.random() * 30) + 70,
-        memeAnalysis: `Excellent ticker option. $${deployTicker.toUpperCase()} evokes classic meme vibes while remaining native to Base's low fees environment.`,
-        onchainScore: Math.floor(Math.random() * 25) + 75,
-        onchainViability: `Highly viable with a ${deployLimit} mint limit. High block distribution potential ensures decentralized community indexing.`,
-        suggestedSlogans: [
-          `Inscribe $${deployTicker.toUpperCase()} on Base - Maximum Chad Inscription!`,
-          `Don't sleep on $${deployTicker.toUpperCase()} fair mint. Community supply engine.`,
-          `Base is fair, $${deployTicker.toUpperCase()} is fairer.`
-        ],
-        aiRecommendedPriceFloor: "0.000084 ETH",
-        bullishScenario: "Base TVL spikes and community deploys micro-swaps, driving the floor up 100x.",
-        bearishScenario: "Gas briefly spikes on Base Mainnet, slowing mint frequency temporarily."
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Suggest Ticker proposals with Gemini
-  const generateIdeasWithAI = async () => {
-    setIsSuggesting(true);
-    setAiSuggestions([]);
-    try {
-      const response = await fetch("/api/gemini/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "suggest",
-          concept: aiPrompt || "Classic Base ecosystem memecoin"
-        }),
-      });
-      const data = await response.json();
-      if (response.ok && data.proposals) {
-        setAiSuggestions(data.proposals);
-      } else {
-        throw new Error(data.error || "Suggestions failed");
-      }
-    } catch (e) {
-      console.error(e);
-      // Mock Fallbacks
-      setAiSuggestions([
-        {
-          ticker: "BASED",
-          name: "Based Fair Coin",
-          maxSupply: 21000000,
-          mintLimit: 1000,
-          tagline: "The absolute pinnacle of Base fair launch culture.",
-          concept: "Built for true on-chain builders. Simple, fair, hyper-distributed."
-        },
-        {
-          ticker: "FARM",
-          name: "Yield Farmer Inscription",
-          maxSupply: 88000000,
-          mintLimit: 880,
-          tagline: "Simulated farm yields, fully community mintable.",
-          concept: "An inscription tribute to the golden era of DeFi yield aggregators on Base."
-        },
-        {
-          ticker: "BLUE",
-          name: "Blue Base Core",
-          maxSupply: 1000000000,
-          mintLimit: 10000,
-          tagline: "Paint the entire onchain space blue.",
-          concept: "Representing Coinbase blue colors. A massive supply fair mint."
-        }
-      ]);
-    } finally {
-      setIsSuggesting(false);
-    }
-  };
-
-  // Perform Inscription / Minting
-  const handleMintInscribe = async () => {
-    if (!selectedMintToken) return;
-    setIsMinting(true);
-    setMintTxHash(null);
-    setMintStatusText("Constructing inscription payload...");
-
-    const inscriptionJSON = JSON.stringify({
-      p: "base-brc20",
-      op: "mint",
-      tick: selectedMintToken.ticker,
-      amt: selectedMintToken.mintLimit.toString()
-    });
-
-    const isActualWallet = typeof window !== "undefined" && (window as any).ethereum && walletAddress && !walletAddress.includes("...");
-
-    try {
-      if (isActualWallet) {
-        setMintStatusText("Awaiting signature from wallet on Base Chain...");
-        const hexData = textToHex(inscriptionJSON);
-        const txHash = await (window as any).ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: walletAddress,
-              to: walletAddress, // EVM Inscriptions send to self
-              value: "0x0",
-              data: hexData,
-            }
-          ]
-        });
-        setMintTxHash(txHash);
-        setMintStatusText("On-chain Inscription transaction broadcasted successfully!");
-      } else {
-        // Simulation mode
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const simulatedHash = "0x" + Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-        setMintTxHash(simulatedHash);
-        setMintStatusText("Simulated Inscription completed successfully inside sandbox!");
-      }
-
-      // Update balances and total minted amount
-      const mintedAmt = selectedMintToken.mintLimit * mintCount;
-      const updatedTokens = tokens.map(t => {
-        if (t.ticker === selectedMintToken.ticker) {
-          const nextAmt = Math.min(t.maxSupply, t.mintedAmount + mintedAmt);
-          return { ...t, mintedAmount: nextAmt };
-        }
-        return t;
-      });
-
-      const nextBalances = {
-        ...userBalances,
-        [selectedMintToken.ticker]: (userBalances[selectedMintToken.ticker] || 0) + mintedAmt
-      };
-
-      const callerAddress = walletAddress || "0xSandboxUser";
-      const shortCaller = callerAddress.slice(0, 6) + "..." + callerAddress.slice(-4);
-      const newLog: InscriptionLog = {
-        id: "l_user_" + Date.now(),
-        timestamp: new Date().toISOString(),
-        type: "mint",
-        ticker: selectedMintToken.ticker,
-        amount: mintedAmt,
-        from: shortCaller,
-        to: shortCaller,
-        txHash: mintTxHash || "0xSimulatedHash..."
-      };
-
-      setTokens(updatedTokens);
-      setUserBalances(nextBalances);
-      setLogs([newLog, ...logs]);
-      saveToLocalStorage(updatedTokens, [newLog, ...logs], nextBalances);
-
-    } catch (err: any) {
-      console.error(err);
-      setMintStatusText(`Failed: ${err.message || "User rejected transaction"}`);
-    } finally {
-      setIsMinting(false);
-    }
-  };
-
-  // Deploy custom BRC-20 Inscription
-  const handleDeployToken = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!deployTicker || !deployName || !deployMaxSupply || !deployLimit) return;
-
-    const tickerUpper = deployTicker.toUpperCase().trim();
-    if (tokens.some(t => t.ticker === tickerUpper)) {
-      alert("Ticker already exists!");
-      return;
-    }
-
-    const maxSupplyNum = Number(deployMaxSupply);
-    const limitNum = Number(deployLimit);
-
-    if (maxSupplyNum <= 0 || limitNum <= 0) {
-      alert("Supply and Limit must be positive numbers.");
-      return;
-    }
-
-    if (limitNum > maxSupplyNum) {
-      alert("Mint limit cannot exceed total supply!");
-      return;
-    }
-
-    // Deploy Inscription structure
-    const deployJSON = JSON.stringify({
-      p: "base-brc20",
-      op: "deploy",
-      tick: tickerUpper,
-      max: maxSupplyNum.toString(),
-      lim: limitNum.toString()
-    });
-
-    setIsMinting(true);
-    setMintStatusText("Constructing Deploy Inscription payload...");
-
-    const isActualWallet = typeof window !== "undefined" && (window as any).ethereum && walletAddress && !walletAddress.includes("...");
-    let txHashToSave = "0xSimulatedDeployHash...";
-
-    try {
-      if (isActualWallet) {
-        setMintStatusText("Deploying Inscription to Base Chain via self-transaction...");
-        const hexData = textToHex(deployJSON);
-        const txHash = await (window as any).ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: walletAddress,
-              to: walletAddress,
-              value: "0x0",
-              data: hexData,
-            }
-          ]
-        });
-        txHashToSave = txHash;
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        txHashToSave = "0x" + Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-      }
-
-      const creatorAddr = walletAddress || "0xSandboxCreator";
-      const newToken: Brc20Token = {
-        ticker: tickerUpper,
-        name: deployName,
-        maxSupply: maxSupplyNum,
-        decimals: 18,
-        mintLimit: limitNum,
-        mintedAmount: 0,
-        creator: creatorAddr,
-        tagline: deployConcept || `A highly optimized Base BRC-20 coin: $${tickerUpper}`,
-        concept: deployConcept,
-        createdAt: new Date().toISOString(),
-        txHash: txHashToSave
-      };
-
-      const newLog: InscriptionLog = {
-        id: "l_deploy_" + Date.now(),
-        timestamp: new Date().toISOString(),
-        type: "deploy",
-        ticker: tickerUpper,
-        from: creatorAddr.slice(0, 6) + "..." + creatorAddr.slice(-4),
-        to: creatorAddr.slice(0, 6) + "..." + creatorAddr.slice(-4),
-        txHash: txHashToSave
-      };
-
-      const updatedTokens = [newToken, ...tokens];
-      const updatedLogs = [newLog, ...logs];
-
-      setTokens(updatedTokens);
-      setLogs(updatedLogs);
-      saveToLocalStorage(updatedTokens, updatedLogs, userBalances);
-
-      // Reset form
-      setDeployTicker("");
-      setDeployName("");
-      setDeployConcept("");
-      setAiAnalysis(null);
-      
-      // Go to mint tab to see the newly deployed token
-      setActiveTab("mint");
-      alert(`Success! BRC-20 Token $${tickerUpper} has been successfully registered on the Base Protocol.`);
-
-    } catch (err: any) {
-      console.error(err);
-      alert(`Deployment Failed: ${err.message || "User rejected transaction"}`);
-    } finally {
-      setIsMinting(false);
-    }
-  };
-
-  // Perform transfer
-  const handleTransferTokens = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTransferError(null);
-    setTransferTxHash(null);
-
-    const amountNum = Number(transferAmount);
-    if (!transferToken) {
-      setTransferError("Please select a token to transfer.");
-      return;
-    }
-    if (!transferRecipient || !transferRecipient.startsWith("0x")) {
-      setTransferError("Please enter a valid recipient EVM address.");
-      return;
-    }
-    if (amountNum <= 0 || amountNum > (userBalances[transferToken] || 0)) {
-      setTransferError("Invalid transfer amount. Exceeds available balance.");
-      return;
-    }
-
-    setIsTransferring(true);
-
-    const transferJSON = JSON.stringify({
-      p: "base-brc20",
-      op: "transfer",
-      tick: transferToken,
-      amt: amountNum.toString()
-    });
-
-    const isActualWallet = typeof window !== "undefined" && (window as any).ethereum && walletAddress && !walletAddress.includes("...");
-
-    try {
-      let txHash = "0xSimulatedTransferHash...";
-      if (isActualWallet) {
-        const hexData = textToHex(transferJSON);
-        txHash = await (window as any).ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: walletAddress,
-              to: walletAddress,
-              value: "0x0",
-              data: hexData,
-            }
-          ]
-        });
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        txHash = "0x" + Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-      }
-
-      setTransferTxHash(txHash);
-
-      // Deduct balance and create log
-      const nextBalances = {
-        ...userBalances,
-        [transferToken]: userBalances[transferToken] - amountNum
-      };
-
-      const callerAddress = walletAddress || "0xSandboxUser";
-      const shortCaller = callerAddress.slice(0, 6) + "..." + callerAddress.slice(-4);
-      const shortRecipient = transferRecipient.slice(0, 6) + "..." + transferRecipient.slice(-4);
-
-      const newLog: InscriptionLog = {
-        id: "l_transfer_" + Date.now(),
-        timestamp: new Date().toISOString(),
-        type: "transfer",
-        ticker: transferToken,
-        amount: amountNum,
-        from: shortCaller,
-        to: shortRecipient,
-        txHash: txHash
-      };
-
-      setUserBalances(nextBalances);
-      setLogs([newLog, ...logs]);
-      saveToLocalStorage(tokens, [newLog, ...logs], nextBalances);
-
-      setTransferAmount("");
-      setTransferRecipient("");
-
-    } catch (err: any) {
-      console.error(err);
-      setTransferError(err.message || "User rejected transfer transaction.");
-    } finally {
-      setIsTransferring(false);
-    }
-  };
-
-  // Filter token list
-  const filteredTokens = tokens.filter(token => {
-    const matchesSearch = token.ticker.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          token.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const isCompleted = token.mintedAmount >= token.maxSupply;
-
-    if (filterType === "active") {
-      return matchesSearch && !isCompleted;
-    }
-    if (filterType === "completed") {
-      return matchesSearch && isCompleted;
-    }
+  // Search and Filter Tokens
+  const filteredTokens = tokens.filter((t) => {
+    const matchesSearch = t.ticker.toLowerCase().includes(searchQuery.toLowerCase());
+    const isCompleted = t.minted >= t.totalSupply;
+    if (mintFilter === "completed") return matchesSearch && isCompleted;
+    if (mintFilter === "inprogress") return matchesSearch && !isCompleted;
     return matchesSearch;
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#02050a] font-sans antialiased text-white relative overflow-x-hidden">
-      {/* Background Mesh Gradients */}
-      <div className="absolute top-[-10%] left-[-5%] w-[400px] h-[400px] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
-      <div className="absolute bottom-[10%] right-[-5%] w-[500px] h-[500px] bg-indigo-800/15 rounded-full blur-[140px] pointer-events-none z-0"></div>
-      <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
-
-      <div className="flex-1 flex flex-col z-10 max-w-7xl mx-auto w-full">
-        {/* Top Navigation Header */}
-        <header className="border-b border-white/10 bg-white/5 backdrop-blur-md sticky top-0 z-40 px-4 py-3 md:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 rounded-lg p-2 text-white shadow-lg shadow-blue-500/20 flex items-center justify-center">
-              <Coins className="w-6 h-6 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-display font-bold text-lg md:text-xl tracking-tight text-white">
-                  Base BRC-20 Protocol
-                </h1>
-                <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/40 px-1.5 py-0.5 rounded-full font-mono font-bold">
-                  BASE CHAIN
-                </span>
-              </div>
-              <p className="text-xs text-white/60">Fair Launch, Zero Code Inscriptions</p>
-            </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col" id="app_root_container">
+      {/* Top Navigation / Header */}
+      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50 px-4 py-4 md:px-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4" id="app_header">
+        <div className="flex items-center gap-3">
+          <div className="bg-amber-500 text-slate-950 p-2 rounded-xl font-bold flex items-center justify-center shadow-lg shadow-amber-500/10" id="brand_icon">
+            <Coins className="w-6 h-6" />
           </div>
-
-          {/* Network & Wallet Section */}
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            {walletAddress && (
-              <div className="hidden md:flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-xs font-mono">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                {chainId === "0x2105" ? (
-                  <span className="text-white/80">Base Mainnet</span>
-                ) : (
-                  <button 
-                    onClick={handleSwitchToBase}
-                    className="text-amber-400 hover:text-amber-300 transition flex items-center gap-1"
-                  >
-                    Switch to Base
-                    <AlertCircle className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {walletAddress ? (
-              <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-full w-full sm:w-auto backdrop-blur-md">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-white/80 font-mono">
-                  <User className="w-3.5 h-3.5 text-white/40" />
-                  <span>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</span>
-                </div>
-                <button
-                  onClick={handleDisconnectWallet}
-                  className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full transition"
-                >
-                  Disconnect
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleConnectWallet}
-                disabled={isConnecting}
-                className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-full text-sm font-semibold transition-all border border-blue-400/30 shadow-lg shadow-blue-900/20 text-white flex items-center justify-center gap-2"
-              >
-                <Wallet className="w-4 h-4" />
-                {isConnecting ? "Connecting..." : "Connect EVM Wallet"}
-              </button>
-            )}
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              BRC-20 Explorer & Ledger <span className="text-xs font-mono px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded border border-amber-500/20">Alpha</span>
+            </h1>
+            <p className="text-xs text-slate-400">Inscribe, mint, and track Bitcoin BRC-20 experimental standard</p>
           </div>
-        </header>
+        </div>
 
-        {/* Main Body Content Layout */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 p-4 md:p-6">
+        {/* Global Live Stats bar */}
+        <div className="flex flex-wrap items-center gap-4 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-300" id="global_status_widget">
+          <div className="flex items-center gap-1.5 border-r border-slate-800 pr-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-mono text-slate-400">BTC Height:</span>
+            <span className="font-bold font-mono text-white">854,228</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-r border-slate-800 pr-4">
+            <Activity className="w-3.5 h-3.5 text-amber-500" />
+            <span>Inscriptions:</span>
+            <span className="font-bold font-mono text-white">{stats.totalInscriptions}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Wallet className="w-3.5 h-3.5 text-sky-500" />
+            <span>Balance overall:</span>
+            <span className="font-bold font-mono text-white">{stats.totalVolume.toLocaleString()} units</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Container Layout */}
+      <main className="flex-grow max-w-7xl w-full mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8" id="app_main_layout">
         
-        {/* Left Rail Menu Selector - Tabs */}
-        <aside className="lg:col-span-1 flex flex-row lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 border-b lg:border-b-0 lg:border-r border-white/10 pr-0 lg:pr-4">
-          <button
-            onClick={() => setActiveTab("mint")}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap lg:w-full ${
-              activeTab === "mint"
-                ? "bg-white/10 text-white border border-white/20 font-semibold shadow-lg backdrop-blur-md"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Coins className="w-4 h-4" />
-            <span>Launchpad Tokens</span>
-          </button>
+        {/* Left column - Simulator Panel (lg:col-span-4) */}
+        <div className="lg:col-span-4 flex flex-col gap-6" id="left_side_panel">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl" id="simulator_card">
+            <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              <h2 className="text-base font-semibold text-white">Inscribe Simulator</h2>
+            </div>
+            
+            <p className="text-xs text-slate-400 mb-4">
+              Simulate standard BRC-20 operations directly in your client sandbox. Operations instantly update the ledger balances and inscription logs.
+            </p>
 
-          <button
-            onClick={() => setActiveTab("deploy")}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap lg:w-full ${
-              activeTab === "deploy"
-                ? "bg-white/10 text-white border border-white/20 font-semibold shadow-lg backdrop-blur-md"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Rocket className="w-4 h-4" />
-            <span>Deploy Token</span>
-          </button>
+            <form onSubmit={handleSimulateInscribe} className="flex flex-col gap-4" id="simulation_form">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Operation Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSimOp("mint")}
+                    className={`py-2 px-3 rounded-lg text-xs font-medium border transition-all ${
+                      simOp === "mint"
+                        ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                        : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                    }`}
+                    id="sim_op_mint"
+                  >
+                    MINT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSimOp("transfer")}
+                    className={`py-2 px-3 rounded-lg text-xs font-medium border transition-all ${
+                      simOp === "transfer"
+                        ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                        : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                    }`}
+                    id="sim_op_transfer"
+                  >
+                    TRANSFER
+                  </button>
+                </div>
+              </div>
 
-          <button
-            onClick={() => setActiveTab("ledger")}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap lg:w-full ${
-              activeTab === "ledger"
-                ? "bg-white/10 text-white border border-white/20 font-semibold shadow-lg backdrop-blur-md"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Database className="w-4 h-4" />
-            <span>Inscription Ledger</span>
-          </button>
+              <div>
+                <label htmlFor="ticker_select" className="block text-xs font-medium text-slate-400 mb-1">Select Token</label>
+                <select
+                  id="ticker_select"
+                  value={simTicker}
+                  onChange={(e) => {
+                    setSimTicker(e.target.value);
+                    const matched = tokens.find(t => t.ticker === e.target.value);
+                    if (matched) setSimAmount(simOp === "mint" ? matched.mintLimit : 100);
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs text-slate-300 focus:outline-none focus:border-amber-500 font-mono"
+                >
+                  {tokens.map((t) => (
+                    <option key={t.ticker} value={t.ticker}>
+                      {t.ticker.toUpperCase()} (Limit: {t.mintLimit})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <button
-            onClick={() => setActiveTab("portfolio")}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap lg:w-full ${
-              activeTab === "portfolio"
-                ? "bg-white/10 text-white border border-white/20 font-semibold shadow-lg backdrop-blur-md"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>My Inscriptions</span>
-          </button>
-        </aside>
+              <div>
+                <label htmlFor="amount_input" className="block text-xs font-medium text-slate-400 mb-1">Amount</label>
+                <div className="relative">
+                  <input
+                    id="amount_input"
+                    type="number"
+                    value={simAmount}
+                    onChange={(e) => setSimAmount(parseInt(e.target.value) || 0)}
+                    placeholder="Enter amount"
+                    min="1"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-3 pr-16 text-xs text-slate-300 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const matched = tokens.find(t => t.ticker === simTicker);
+                      if (matched) setSimAmount(simOp === "mint" ? matched.mintLimit : (ledger.find(l => l.ticker === simTicker)?.available || 100));
+                    }}
+                    className="absolute right-2 top-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-amber-500 rounded font-semibold transition-all"
+                  >
+                    MAX
+                  </button>
+                </div>
+              </div>
 
-        {/* Center / Right Multi-Panel dynamic display */}
-        <main className="lg:col-span-3 space-y-6">
-          
-          <AnimatePresence mode="wait">
-            {activeTab === "mint" && (
-              <motion.div
-                key="mint-tab"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
+              <button
+                type="submit"
+                className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 transition-all"
+                id="btn_submit_inscribe"
               >
-                {/* Search, Filter section */}
-                <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-md shadow-xl">
-                  <div className="relative w-full md:w-72">
-                    <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Search ticker or name..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-white/30 text-white placeholder-white/40 backdrop-blur-sm"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center gap-1.5 p-1 bg-black/20 rounded-2xl border border-white/5 w-full md:w-auto">
-                    <button
-                      onClick={() => setFilterType("all")}
-                      className={`flex-1 md:flex-initial px-4 py-2 text-xs rounded-xl transition ${
-                        filterType === "all" ? "bg-white/15 text-white font-semibold border border-white/10 shadow-md backdrop-blur-md" : "text-white/60 hover:text-white"
-                      }`}
-                    >
-                      All
-                    </button>
-                    <button
-                      onClick={() => setFilterType("active")}
-                      className={`flex-1 md:flex-initial px-4 py-2 text-xs rounded-xl transition ${
-                        filterType === "active" ? "bg-white/15 text-white font-semibold border border-white/10 shadow-md backdrop-blur-md" : "text-white/60 hover:text-white"
-                      }`}
-                    >
-                      Active Minting
-                    </button>
-                    <button
-                      onClick={() => setFilterType("completed")}
-                      className={`flex-1 md:flex-initial px-4 py-2 text-xs rounded-xl transition ${
-                        filterType === "completed" ? "bg-white/15 text-white font-semibold border border-white/10 shadow-md backdrop-blur-md" : "text-white/60 hover:text-white"
-                      }`}
-                    >
-                      Fully Minted
-                    </button>
-                  </div>
+                <PlusCircle className="w-4 h-4" />
+                Inscribe {simOp.toUpperCase()}
+              </button>
+            </form>
+
+            <AnimatePresence>
+              {simSuccessMsg && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs rounded-xl flex items-start gap-2"
+                  id="simulation_success_toast"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                  <span>{simSuccessMsg}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Quick Help Box */}
+          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5" id="help_box">
+            <h3 className="text-xs font-semibold text-white mb-2 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-amber-500" />
+              What is BRC-20?
+            </h3>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              BRC-20 is an experimental token standard for Bitcoin using ordinal inscriptions. 
+              Tokens are deployed, minted, and transferred utilizing JSON payloads inscribed directly onto satoshis.
+            </p>
+          </div>
+        </div>
+
+        {/* Right column - Main Dashboard Tabs & Lists (lg:col-span-8) */}
+        <div className="lg:col-span-8 flex flex-col gap-6" id="dashboard_panel">
+          
+          {/* Navigation Tab bar & Search controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-2 rounded-2xl" id="tab_control_container">
+            <div className="flex items-center gap-1" id="tab_buttons_group">
+              <button
+                onClick={() => setActiveTab("tokens")}
+                className={`flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
+                  activeTab === "tokens"
+                    ? "bg-slate-800 text-white shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                id="tab_btn_tokens"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Tokens
+              </button>
+              <button
+                onClick={() => setActiveTab("inscriptions")}
+                className={`flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
+                  activeTab === "inscriptions"
+                    ? "bg-slate-800 text-white shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                id="tab_btn_inscriptions"
+              >
+                <FileText className="w-4 h-4" />
+                My Inscriptions
+              </button>
+              <button
+                onClick={() => setActiveTab("ledger")}
+                className={`flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
+                  activeTab === "ledger"
+                    ? "bg-slate-800 text-white shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                id="tab_btn_ledger"
+              >
+                <Database className="w-4 h-4" />
+                Ledger
+              </button>
+            </div>
+
+            {/* Render conditional actions inside tab controls (like search or exports) */}
+            <div className="flex items-center gap-2" id="conditional_controls">
+              {activeTab === "tokens" && (
+                <div className="relative w-full sm:w-48" id="search_input_container">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search ticker..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+              )}
+
+              {activeTab === "inscriptions" && (
+                <button
+                  onClick={handleExportInscriptions}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all text-white font-medium"
+                  id="btn_export_inscriptions"
+                >
+                  <Download className="w-3.5 h-3.5 text-amber-500" />
+                  Export to JSON
+                </button>
+              )}
+
+              {activeTab === "ledger" && (
+                <button
+                  onClick={handleExportLedger}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all text-white font-medium"
+                  id="btn_export_ledger"
+                >
+                  <Download className="w-3.5 h-3.5 text-amber-500" />
+                  Export to JSON
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Tab Content Display */}
+          <div id="tab_content_wrapper">
+            
+            {/* 1. TOKENS TAB */}
+            {activeTab === "tokens" && (
+              <div className="flex flex-col gap-4" id="tokens_tab_content">
+                {/* Mint Progress Filter buttons */}
+                <div className="flex items-center gap-2 mb-2" id="filter_buttons">
+                  <button
+                    onClick={() => setMintFilter("all")}
+                    className={`px-3 py-1 rounded-full text-[10px] font-semibold border ${
+                      mintFilter === "all"
+                        ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    ALL
+                  </button>
+                  <button
+                    onClick={() => setMintFilter("inprogress")}
+                    className={`px-3 py-1 rounded-full text-[10px] font-semibold border ${
+                      mintFilter === "inprogress"
+                        ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    MINTING IN PROGRESS
+                  </button>
+                  <button
+                    onClick={() => setMintFilter("completed")}
+                    className={`px-3 py-1 rounded-full text-[10px] font-semibold border ${
+                      mintFilter === "completed"
+                        ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    COMPLETED
+                  </button>
                 </div>
 
-                {/* Grid list of BRC20 Tokens */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {filteredTokens.length > 0 ? (
-                    filteredTokens.map((token) => {
-                      const percentMinted = Math.min(100, (token.mintedAmount / token.maxSupply) * 100);
-                      const isCompleted = percentMinted >= 100;
-
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="tokens_grid">
+                  {filteredTokens.length === 0 ? (
+                    <div className="col-span-full py-12 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-2xl" id="no_tokens_found">
+                      No BRC-20 tokens match your filter.
+                    </div>
+                  ) : (
+                    filteredTokens.map((t) => {
+                      const mintProgressPercent = Math.min(100, (t.minted / t.totalSupply) * 100);
+                      const isComplete = mintProgressPercent >= 100;
                       return (
-                        <div 
-                          key={token.ticker} 
-                          className="bg-white/5 border border-white/10 hover:border-white/20 rounded-[32px] p-6 transition-all duration-300 flex flex-col justify-between gap-5 relative overflow-hidden group shadow-lg backdrop-blur-md"
+                        <div
+                          key={t.ticker}
+                          className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 hover:border-slate-700 transition-all shadow-md flex flex-col gap-4 relative overflow-hidden"
+                          id={`token_card_${t.ticker}`}
                         >
-                          {/* Completeness stamp */}
-                          {isCompleted && (
-                            <div className="absolute top-3 right-3 bg-green-500/10 text-green-400 border border-green-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-mono flex items-center gap-1">
-                              <CheckCircle className="w-3 h-3" />
-                              Minted Out
-                            </div>
-                          )}
+                          {/* Banner background status accent */}
+                          <div className={`absolute top-0 left-0 right-0 h-1 ${isComplete ? "bg-emerald-500" : "bg-amber-500"}`} />
 
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                              <div className="bg-white/10 border border-white/15 rounded-2xl px-3.5 py-1.5 font-mono font-black text-lg tracking-wider text-blue-400 shadow-md">
-                                ${token.ticker}
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg font-bold text-white font-mono uppercase">${t.ticker}</span>
+                                {isComplete ? (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded uppercase">
+                                    Mint Completed
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded uppercase animate-pulse">
+                                    In Progress
+                                  </span>
+                                )}
                               </div>
-                              <div>
-                                <h3 className="font-bold text-white text-sm">{token.name}</h3>
-                                <p className="text-[10px] text-white/40 font-mono">
-                                  Deployed: {token.createdAt.slice(0, 10)}
-                                </p>
-                              </div>
+                              <span className="text-[10px] font-mono text-slate-500">Deploy block: {t.createdBlock}</span>
                             </div>
 
-                            <p className="text-xs text-white/60 line-clamp-2 italic pt-1">
-                              &ldquo;{token.tagline}&rdquo;
-                            </p>
+                            {/* Mini Sparkline Chart utilizing Recharts */}
+                            <div className="flex flex-col items-end" id={`sparkline_wrapper_${t.ticker}`}>
+                              <span className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Mint Trend</span>
+                              <Sparkline data={t.sparklineData} color={isComplete ? "#10b981" : "#f59e0b"} />
+                            </div>
                           </div>
 
-                          {/* Sparkline Chart */}
-                          <div className="space-y-1.5 bg-black/15 border border-white/5 rounded-2xl p-3">
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-white/40 font-semibold tracking-wider uppercase flex items-center gap-1">
-                                <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
-                                Recent Minting Activity
-                              </span>
-                              <span className="text-[9px] text-white/30 font-mono">
-                                {isCompleted ? "Mint Concluded" : "Live Feed Data"}
-                              </span>
+                          {/* Progress bar */}
+                          <div>
+                            <div className="flex justify-between text-[11px] mb-1 font-mono text-slate-400">
+                              <span>Mint progress</span>
+                              <span className="font-bold text-white">{mintProgressPercent.toFixed(1)}%</span>
                             </div>
-                            <Sparkline data={getSparklineData(token, logs)} isCompleted={isCompleted} />
-                          </div>
-
-                          {/* Mint progress metrics */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-white/40">Total Minted Progress</span>
-                              <span className="font-mono text-white/80 font-medium">
-                                {percentMinted.toFixed(2)}%
-                              </span>
-                            </div>
-                            
-                            {/* Visual Progress Bar */}
-                            <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden border border-white/5">
-                              <motion.div 
-                                className={`h-full rounded-full ${
-                                  isCompleted 
-                                    ? "bg-gradient-to-r from-green-500 to-green-400" 
-                                    : "bg-gradient-to-r from-blue-600 to-blue-400"
-                                }`}
-                                initial={{ width: 0 }}
-                                animate={{ width: `${percentMinted}%` }}
-                                transition={{ duration: 1 }}
+                            <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${isComplete ? "bg-emerald-500" : "bg-amber-500"}`}
+                                style={{ width: `${mintProgressPercent}%` }}
                               />
                             </div>
-
-                            <div className="flex justify-between text-[10px] text-white/40 font-mono">
-                              <span>{token.mintedAmount.toLocaleString()} minted</span>
-                              <span>{token.maxSupply.toLocaleString()} Max</span>
-                            </div>
                           </div>
 
-                          {/* Action panel footer */}
-                          <div className="border-t border-white/10 pt-4 flex items-center justify-between gap-2">
-                            <div className="text-[11px] text-white/40 font-mono">
-                              <span>Limit/Tx: </span>
-                              <span className="text-white/80 font-bold">{token.mintLimit.toLocaleString()}</span>
+                          {/* Parameter details list */}
+                          <div className="grid grid-cols-2 gap-y-2 gap-x-4 border-t border-slate-800/60 pt-3 text-xs" id={`token_params_${t.ticker}`}>
+                            <div>
+                              <span className="text-[10px] text-slate-500 block uppercase">Total Supply</span>
+                              <span className="font-mono text-white font-semibold">{t.totalSupply.toLocaleString()}</span>
                             </div>
-
-                            <button
-                              onClick={() => setSelectedMintToken(token)}
-                              disabled={isCompleted}
-                              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                                isCompleted 
-                                  ? "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed" 
-                                  : "bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/30 shadow-lg shadow-blue-900/20"
-                              }`}
-                            >
-                              <Flame className="w-3.5 h-3.5" />
-                              Mint Token
-                            </button>
+                            <div>
+                              <span className="text-[10px] text-slate-500 block uppercase">Limit Per Mint</span>
+                              <span className="font-mono text-white font-semibold">{t.mintLimit.toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-500 block uppercase">Holders</span>
+                              <span className="font-mono text-white font-semibold">{t.holders.toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-500 block uppercase">Transactions</span>
+                              <span className="font-mono text-white font-semibold">{t.transactions.toLocaleString()}</span>
+                            </div>
                           </div>
                         </div>
                       );
                     })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 2. MY INSCRIPTIONS TAB */}
+            {activeTab === "inscriptions" && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="inscriptions_tab_content">
+                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between" id="inscriptions_header">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-amber-500" />
+                    <h3 className="font-semibold text-white">Your Inscription Logs</h3>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-800 rounded">
+                    Total: {inscriptions.length} logs
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto" id="inscriptions_table_container">
+                  {inscriptions.length === 0 ? (
+                    <div className="py-12 text-center text-slate-500 text-xs" id="no_inscriptions_found">
+                      You haven't inscribed any operations yet. Use the Simulator on the left!
+                    </div>
                   ) : (
-                    <div className="col-span-1 md:col-span-2 py-12 text-center text-white/40 bg-white/5 border border-dashed border-white/10 rounded-[32px] backdrop-blur-md">
-                      No matching BRC-20 tokens found.
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === "deploy" && (
-              <motion.div
-                key="deploy-tab"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-6"
-              >
-                {/* Deployment parameters form */}
-                <div className="lg:col-span-7 bg-white/5 border border-white/10 p-6 rounded-[32px] space-y-6 shadow-xl backdrop-blur-md">
-                  <div>
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Rocket className="w-5 h-5 text-blue-400" />
-                      Inscribe New Token Protocol
-                    </h2>
-                    <p className="text-xs text-white/40">
-                      Configure your standard BRC-20 key parameters. The protocol executes as an immutable transaction directly on Base.
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleDeployToken} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs text-white/40 font-semibold block">
-                          Ticker Symbol
-                        </label>
-                        <input
-                          type="text"
-                          maxLength={5}
-                          placeholder="e.g. CORE"
-                          value={deployTicker}
-                          onChange={(e) => setDeployTicker(e.target.value.toUpperCase())}
-                          required
-                          className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-sm text-white focus:outline-none font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs text-white/40 font-semibold block">
-                          Token Full Name
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Core Base Token"
-                          value={deployName}
-                          onChange={(e) => setDeployName(e.target.value)}
-                          required
-                          className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-sm text-white focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs text-white/40 font-semibold block">
-                          Max Supply Limit
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 21000000"
-                          value={deployMaxSupply}
-                          onChange={(e) => setDeployMaxSupply(e.target.value)}
-                          required
-                          className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-sm text-white focus:outline-none font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs text-white/40 font-semibold block">
-                          Mint Limit Per Tx
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 1000"
-                          value={deployLimit}
-                          onChange={(e) => setDeployLimit(e.target.value)}
-                          required
-                          className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-sm text-white focus:outline-none font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-white/40 font-semibold block">
-                        Tagline / Concept Description
-                      </label>
-                      <textarea
-                        placeholder="Write a viral tagline or coin purpose. What represents this BRC-20 token?"
-                        value={deployConcept}
-                        onChange={(e) => setDeployConcept(e.target.value)}
-                        rows={3}
-                        className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-sm text-white focus:outline-none resize-none"
-                      />
-                    </div>
-
-                    {/* Pre-launch Preview Payload */}
-                    {deployTicker && (
-                      <div className="bg-black/20 p-4 rounded-2xl border border-white/10 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/40 font-mono uppercase tracking-wider">
-                            Generated Inscription JSON
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(
-                              JSON.stringify({
-                                p: "base-brc20",
-                                op: "deploy",
-                                tick: deployTicker.toUpperCase(),
-                                max: deployMaxSupply,
-                                lim: deployLimit
-                              }), "json"
-                            )}
-                            className="text-[10px] text-white/60 hover:text-white flex items-center gap-1 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl transition"
-                          >
-                            {copiedText === "json" ? (
-                              <>
-                                <Check className="w-3 h-3 text-green-400" />
-                                Copied
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                Copy JSON
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <pre className="text-[11px] font-mono text-white/70 overflow-x-auto scrollbar-thin">
-                          {JSON.stringify({
-                            p: "base-brc20",
-                            op: "deploy",
-                            tick: deployTicker.toUpperCase(),
-                            max: deployMaxSupply,
-                            lim: deployLimit
-                          }, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-2">
-                      {deployTicker && (
-                        <button
-                          type="button"
-                          onClick={analyzeTokenWithAI}
-                          disabled={isAnalyzing}
-                          className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-xs py-3 rounded-2xl transition flex items-center justify-center gap-2"
-                        >
-                          <BrainCircuit className="w-4 h-4 text-purple-400" />
-                          {isAnalyzing ? "Analyzing..." : "Analyze with Gemini Meme AI"}
-                        </button>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={isMinting}
-                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs py-3 rounded-2xl shadow-lg shadow-blue-900/20 transition flex items-center justify-center gap-1.5"
-                      >
-                        <Send className="w-4 h-4" />
-                        {isMinting ? "Deploying..." : "Deploy Inscription on Base"}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* Gemini AI Suggestions & Analysis Sidebar */}
-                <div className="lg:col-span-5 space-y-6">
-                  {/* Gemini Ticker Generator */}
-                  <div className="bg-white/5 border border-white/10 p-5 rounded-[32px] space-y-4 shadow-xl backdrop-blur-md">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-400" />
-                      <h3 className="font-bold text-white text-sm">Gemini AI Ticker Generator</h3>
-                    </div>
-                    
-                    <p className="text-xs text-white/40">
-                      Need a catchy, high-viability ticker concept? Let Gemini generate customized proposals for your Base launch!
-                    </p>
-
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        placeholder="Theme (e.g. speedy frogs, based cats, sci-fi)..."
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                      />
-                      
-                      <button
-                        onClick={generateIdeasWithAI}
-                        disabled={isSuggesting}
-                        className="w-full bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 font-semibold text-xs py-2.5 rounded-2xl transition flex items-center justify-center gap-2"
-                      >
-                        <BrainCircuit className="w-3.5 h-3.5" />
-                        {isSuggesting ? "Generating..." : "Generate AI Proposals"}
-                      </button>
-                    </div>
-
-                    {/* Proposal Options List */}
-                    {aiSuggestions.length > 0 && (
-                      <div className="space-y-3 pt-2">
-                        <span className="text-[10px] text-white/40 font-mono tracking-wider uppercase">
-                          AI Recommendations
-                        </span>
-                        {aiSuggestions.map((prop) => (
-                          <div 
-                            key={prop.ticker}
-                            onClick={() => {
-                              setDeployTicker(prop.ticker);
-                              setDeployName(prop.name);
-                              setDeployMaxSupply(prop.maxSupply.toString());
-                              setDeployLimit(prop.mintLimit.toString());
-                              setDeployConcept(prop.tagline);
-                            }}
-                            className="bg-black/20 hover:bg-white/5 border border-white/5 hover:border-white/15 p-4 rounded-2xl cursor-pointer transition space-y-1.5 group"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono font-black text-xs text-purple-400 group-hover:text-purple-300">
-                                ${prop.ticker}
+                    <table className="w-full text-left border-collapse" id="inscriptions_table">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/40">
+                          <th className="py-3 px-6">Number / ID</th>
+                          <th className="py-3 px-6">Ticker</th>
+                          <th className="py-3 px-6">Op / Payload</th>
+                          <th className="py-3 px-6">Amount</th>
+                          <th className="py-3 px-6">Timestamp</th>
+                          <th className="py-3 px-6">Tx Hash</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/55 text-xs text-slate-300">
+                        {inscriptions.map((i) => (
+                          <tr key={i.id} className="hover:bg-slate-950/20 transition-all" id={`insc_row_${i.number}`}>
+                            <td className="py-3 px-6 font-mono">
+                              <div className="text-amber-500 font-bold">#{i.number}</div>
+                              <div className="text-[10px] text-slate-500 max-w-[120px] truncate" title={i.id}>{i.id}</div>
+                            </td>
+                            <td className="py-3 px-6 uppercase font-mono font-bold text-white">${i.ticker}</td>
+                            <td className="py-3 px-6">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                i.op === "deploy"
+                                  ? "bg-purple-500/10 border border-purple-500/20 text-purple-400"
+                                  : i.op === "mint"
+                                  ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                                  : "bg-blue-500/10 border border-blue-500/20 text-blue-400"
+                              }`}>
+                                {i.op}
                               </span>
-                              <span className="text-[10px] text-white/60 font-medium">{prop.name}</span>
-                            </div>
-                            <p className="text-[11px] text-white/70 italic line-clamp-1">
-                              &ldquo;{prop.tagline}&rdquo;
-                            </p>
-                            <div className="flex justify-between text-[9px] text-white/40 font-mono pt-1.5 border-t border-white/5">
-                              <span>Supply: {prop.maxSupply.toLocaleString()}</span>
-                              <span>Limit/Tx: {prop.mintLimit}</span>
-                            </div>
-                          </div>
+                            </td>
+                            <td className="py-3 px-6 font-mono font-semibold text-white">{i.amount.toLocaleString()}</td>
+                            <td className="py-3 px-6 font-mono text-slate-400 text-[11px]">{i.timestamp}</td>
+                            <td className="py-3 px-6 font-mono text-slate-400 text-[11px]">{i.txHash}</td>
+                          </tr>
                         ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Gemini Live Analysis Report */}
-                  {aiAnalysis && (
-                    <div className="bg-white/5 border border-white/10 p-5 rounded-[32px] space-y-4 shadow-xl backdrop-blur-md">
-                      <div className="flex items-center gap-2 justify-between">
-                        <div className="flex items-center gap-2">
-                          <Cpu className="w-5 h-5 text-indigo-400 animate-pulse" />
-                          <h3 className="font-bold text-white text-sm">Gemini Audit Scorecard</h3>
-                        </div>
-                        <span className="bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded text-[10px] font-mono">
-                          AUDITED
-                        </span>
-                      </div>
-
-                      {/* Score metrics */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-black/20 p-3 rounded-2xl border border-white/5 text-center space-y-1">
-                          <span className="text-[9px] text-white/40 font-mono uppercase tracking-wider block">
-                            Meme Viability
-                          </span>
-                          <span className="text-xl font-black text-green-400">
-                            {aiAnalysis.memeScore}/100
-                          </span>
-                        </div>
-                        <div className="bg-black/20 p-3 rounded-2xl border border-white/5 text-center space-y-1">
-                          <span className="text-[9px] text-white/40 font-mono uppercase tracking-wider block">
-                            Onchain Viability
-                          </span>
-                          <span className="text-xl font-black text-blue-400">
-                            {aiAnalysis.onchainScore}/100
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 text-xs">
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-mono text-white/40 block uppercase">Critique</span>
-                          <p className="text-white/80 leading-relaxed">{aiAnalysis.memeAnalysis}</p>
-                        </div>
-
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-mono text-white/40 block uppercase">Distribution Index</span>
-                          <p className="text-white/80 leading-relaxed">{aiAnalysis.onchainViability}</p>
-                        </div>
-
-                        {/* Suggested slogans */}
-                        {aiAnalysis.suggestedSlogans && (
-                          <div className="space-y-1.5 pt-2 border-t border-white/10">
-                            <span className="text-[10px] font-mono text-white/40 block uppercase">Suggested Marketing Slogans</span>
-                            <ul className="space-y-1 text-[11px] text-purple-300 italic list-disc pl-4">
-                              {aiAnalysis.suggestedSlogans.map((slogan, idx) => (
-                                <li key={idx}>&ldquo;{slogan}&rdquo;</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Forecast metrics */}
-                        <div className="pt-2.5 border-t border-white/10 grid grid-cols-1 gap-2 text-[11px] bg-black/20 p-3.5 rounded-2xl">
-                          <div className="flex justify-between">
-                            <span className="text-white/40 font-mono">Recommended Price Floor:</span>
-                            <span className="text-green-400 font-mono font-semibold">{aiAnalysis.aiRecommendedPriceFloor}</span>
-                          </div>
-                          <div className="border-t border-white/5 my-1"></div>
-                          <div>
-                            <span className="text-white/50 font-bold">Bullish: </span>
-                            <span className="text-white/80">{aiAnalysis.bullishScenario}</span>
-                          </div>
-                          <div>
-                            <span className="text-white/50 font-bold">Bearish: </span>
-                            <span className="text-white/80">{aiAnalysis.bearishScenario}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                      </tbody>
+                    </table>
                   )}
                 </div>
-              </motion.div>
+              </div>
             )}
 
+            {/* 3. LEDGER BALANCES TAB */}
             {activeTab === "ledger" && (
-              <motion.div
-                key="ledger-tab"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="bg-white/5 border border-white/10 p-5 rounded-[32px] space-y-4 shadow-xl backdrop-blur-md"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Database className="w-5 h-5 text-emerald-400" />
-                      Live Inscription Ledger Scan
-                    </h2>
-                    <p className="text-xs text-white/40">
-                      Real-time tracker of all Deploy, Mint, and Transfer inscription blocks broadcasted on Base Chain.
-                    </p>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="ledger_tab_content">
+                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between" id="ledger_header">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-amber-500" />
+                    <h3 className="font-semibold text-white">Your Account Balances</h3>
                   </div>
-
-                  <button 
-                    onClick={() => {
-                      alert("Re-indexing latest block inscriptions...");
-                    }}
-                    className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white/60 hover:text-white transition"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
+                  <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-800 rounded">
+                    Total: {ledger.length} assets
+                  </span>
                 </div>
 
-                {/* Ledger Terminal Feed */}
-                <div className="bg-black/30 border border-white/10 rounded-2xl overflow-hidden shadow-inner">
-                  {/* Ledger Header */}
-                  <div className="bg-white/5 px-4 py-2 border-b border-white/10 flex items-center justify-between font-mono text-[10px] text-white/40">
-                    <span className="flex-1">TIMESTAMP / OP</span>
-                    <span className="w-20 text-center">TICKER</span>
-                    <span className="w-24 text-right">AMOUNT</span>
-                    <span className="w-28 text-right">HASH / LINK</span>
-                  </div>
-
-                  {/* Terminal rows */}
-                  <div className="divide-y divide-white/5 max-h-[500px] overflow-y-auto font-mono text-xs">
-                    {logs.map((log) => (
-                      <div 
-                        key={log.id} 
-                        className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/5 transition"
-                      >
-                        <div className="flex-1 flex items-center gap-2">
-                          <span className="text-[10px] text-white/40">
-                            {new Date(log.timestamp).toLocaleTimeString()}
-                          </span>
-                          
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${
-                            log.type === "deploy" 
-                              ? "bg-purple-500/15 text-purple-300 border border-purple-500/30" 
-                              : log.type === "mint"
-                                ? "bg-green-500/15 text-green-300 border border-green-500/30"
-                                : "bg-blue-500/15 text-blue-300 border border-blue-500/30"
-                          }`}>
-                            {log.type}
-                          </span>
-                          
-                          <span className="text-[11px] text-white/40 truncate max-w-[150px] sm:max-w-none">
-                            {log.from} ➔ {log.to}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-6">
-                          <span className="w-20 text-center font-bold text-white/80">
-                            ${log.ticker}
-                          </span>
-                          
-                          <span className="w-24 text-right font-semibold text-white/70">
-                            {log.amount ? log.amount.toLocaleString() : "-"}
-                          </span>
-
-                          <span className="w-28 text-right text-xs text-blue-400 hover:text-blue-300 cursor-pointer">
-                            {log.txHash}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === "portfolio" && (
-              <motion.div
-                key="portfolio-tab"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-6"
-              >
-                {/* My balances list */}
-                <div className="lg:col-span-6 bg-white/5 border border-white/10 p-5 rounded-[32px] space-y-4 shadow-xl backdrop-blur-md">
-                  <div>
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Layers className="w-5 h-5 text-blue-400" />
-                      My BRC-20 Holdings
-                    </h2>
-                    <p className="text-xs text-white/40">
-                      Decentralized fair balances inscribed or held by your connected EVM wallet on Base.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {Object.entries(userBalances).length > 0 ? (
-                      Object.entries(userBalances).map(([tick, balance]) => {
-                        if (balance <= 0) return null;
-                        const matchingToken = tokens.find(t => t.ticker === tick);
-
-                        return (
-                          <div 
-                            key={tick} 
-                            className="bg-black/20 p-4 rounded-2xl border border-white/5 flex items-center justify-between gap-4"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="bg-blue-600/15 text-blue-300 font-mono font-black border border-blue-500/30 px-2.5 py-1 rounded">
-                                ${tick}
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-sm text-white">
-                                  {matchingToken ? matchingToken.name : `${tick} Token`}
-                                </h4>
-                                <span className="text-[10px] text-white/40 font-mono">
-                                  Base Chain Inscription balance
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="text-right">
-                              <span className="text-base font-black text-white block">
-                                {balance.toLocaleString()}
-                              </span>
-                              <span className="text-[10px] text-white/40 font-mono">
-                                Limit/Tx: {matchingToken?.mintLimit || "-"}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="py-8 text-center text-white/40 border border-dashed border-white/10 rounded-2xl text-xs backdrop-blur-sm">
-                        No balances found. Go to Launchpad Tokens to mint some!
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Transfer builder panel */}
-                <div className="lg:col-span-6 bg-white/5 border border-white/10 p-5 rounded-[32px] space-y-4 shadow-xl backdrop-blur-md">
-                  <div>
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Send className="w-5 h-5 text-indigo-400" />
-                      Inscribe Transfer Order
-                    </h2>
-                    <p className="text-xs text-white/40">
-                      Generate a Transfer Inscription and route standard EVM parameters on Base.
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleTransferTokens} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-white/40 font-semibold block">
-                        Select Token
-                      </label>
-                      <select
-                        value={transferToken}
-                        onChange={(e) => setTransferToken(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-xs text-white focus:outline-none"
-                      >
-                        <option value="" className="bg-neutral-900">-- Choose Token --</option>
-                        {Object.entries(userBalances).map(([tick, bal]) => (
-                          <option key={tick} value={tick} className="bg-neutral-900">
-                            ${tick} (Available: {bal.toLocaleString()})
-                          </option>
+                <div className="overflow-x-auto" id="ledger_table_container">
+                  {ledger.length === 0 ? (
+                    <div className="py-12 text-center text-slate-500 text-xs" id="no_ledger_found">
+                      No active balances in your account. Mint some tokens!
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse" id="ledger_table">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/40">
+                          <th className="py-3 px-6">Ticker</th>
+                          <th className="py-3 px-6 text-right">Available Balance</th>
+                          <th className="py-3 px-6 text-right">Transferable</th>
+                          <th className="py-3 px-6 text-right">Overall Balance</th>
+                          <th className="py-3 px-6 text-right">Last Updated</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/55 text-xs text-slate-300 font-mono">
+                        {ledger.map((b) => (
+                          <tr key={b.ticker} className="hover:bg-slate-950/20 transition-all" id={`ledger_row_${b.ticker}`}>
+                            <td className="py-4 px-6 uppercase font-bold text-white text-sm">${b.ticker}</td>
+                            <td className="py-4 px-6 text-right font-semibold text-emerald-400">{b.available.toLocaleString()}</td>
+                            <td className="py-4 px-6 text-right text-slate-400">{b.transferable.toLocaleString()}</td>
+                            <td className="py-4 px-6 text-right font-bold text-white text-sm">{b.overall.toLocaleString()}</td>
+                            <td className="py-4 px-6 text-right text-slate-500 text-[10px]">{b.lastUpdated}</td>
+                          </tr>
                         ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-white/40 font-semibold block">
-                        Recipient EVM Address
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="0x..."
-                        value={transferRecipient}
-                        onChange={(e) => setTransferRecipient(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-white/40 font-semibold block">
-                        Amount to Transfer
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="e.g. 500"
-                        value={transferAmount}
-                        onChange={(e) => setTransferAmount(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 focus:border-white/30 rounded-2xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-mono"
-                      />
-                    </div>
-
-                    {transferToken && transferAmount && (
-                      <div className="bg-black/20 p-4 rounded-2xl border border-white/10 space-y-1.5">
-                        <span className="text-[10px] text-white/40 font-mono block uppercase">
-                          Transfer Inscription Payload
-                        </span>
-                        <pre className="text-[11px] font-mono text-white/70">
-                          {JSON.stringify({
-                            p: "base-brc20",
-                            op: "transfer",
-                            tick: transferToken,
-                            amt: transferAmount
-                          }, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-
-                    {transferError && (
-                      <div className="flex items-center gap-2 bg-red-500/15 border border-red-500/25 text-red-300 p-3 rounded-2xl text-xs">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                        <span>{transferError}</span>
-                      </div>
-                    )}
-
-                    {transferTxHash && (
-                      <div className="bg-green-500/15 border border-green-500/25 text-green-300 p-3.5 rounded-2xl text-xs space-y-1">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          <span className="font-semibold">Transfer Inscription Broadcasted!</span>
-                        </div>
-                        <p className="text-[10px] font-mono text-white/40">
-                          Transaction Hash: {transferTxHash}
-                        </p>
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={isTransferring}
-                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-3 rounded-2xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-900/20"
-                    >
-                      <Send className="w-4 h-4" />
-                      {isTransferring ? "Broadcasting Transfer..." : "Inscribe & Send Transfer"}
-                    </button>
-                  </form>
+                      </tbody>
+                    </table>
+                  )}
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
-        </main>
-      </div>
 
-      {/* Mint Token details overlay dialog modal */}
-      <AnimatePresence>
-        {selectedMintToken && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-neutral-950/80 border border-white/15 rounded-[32px] max-w-lg w-full overflow-hidden shadow-2xl p-6 space-y-5 backdrop-blur-xl"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Flame className="w-5 h-5 text-amber-500 animate-pulse" />
-                  <h3 className="font-bold text-white text-base">
-                    Fair-Mint Inscription
-                  </h3>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedMintToken(null);
-                    setMintTxHash(null);
-                    setMintStatusText("");
-                  }}
-                  className="text-xs bg-white/5 hover:bg-white/10 text-white/60 hover:text-white px-3 py-1.5 rounded-xl transition"
-                >
-                  Close
-                </button>
-              </div>
-
-              {/* Token Parameters Info block */}
-              <div className="bg-black/20 p-4 rounded-2xl border border-white/10 space-y-3">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                  <span className="text-xs text-white/40">Ticker Protocol</span>
-                  <span className="font-mono font-black text-blue-400 text-sm">
-                    ${selectedMintToken.ticker}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs border-b border-white/5 pb-2">
-                  <span className="text-white/40">Mint Limit Per Tx</span>
-                  <span className="font-mono text-white/80">
-                    {selectedMintToken.mintLimit.toLocaleString()} tokens
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs pb-1">
-                  <span className="text-white/40">Remaining Fair Supply</span>
-                  <span className="font-mono text-white/80">
-                    {(selectedMintToken.maxSupply - selectedMintToken.mintedAmount).toLocaleString()} tokens
-                  </span>
-                </div>
-              </div>
-
-              {/* JSON & Hex code layout */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-white/40 font-mono tracking-wider uppercase">
-                    Inscription payload
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard(
-                      JSON.stringify({
-                        p: "base-brc20",
-                        op: "mint",
-                        tick: selectedMintToken.ticker,
-                        amt: selectedMintToken.mintLimit.toString()
-                      }), "mint-json"
-                    )}
-                    className="text-[9px] text-white/60 hover:text-white flex items-center gap-1 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl transition"
-                  >
-                    {copiedText === "mint-json" ? (
-                      <>
-                        <Check className="w-3 h-3 text-green-400" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        Copy
-                      </>
-                    )}
-                  </button>
-                </div>
-                <pre className="text-xs font-mono bg-black/30 p-3.5 rounded-xl border border-white/10 text-white/70">
-                  {JSON.stringify({
-                    p: "base-brc20",
-                    op: "mint",
-                    tick: selectedMintToken.ticker,
-                    amt: selectedMintToken.mintLimit.toString()
-                  }, null, 2)}
-                </pre>
-              </div>
-
-              {/* Inscription Action Box */}
-              <div className="space-y-3 pt-2">
-                {mintStatusText && (
-                  <div className={`p-3.5 rounded-2xl text-xs flex gap-2 items-start ${
-                    mintStatusText.includes("Failed")
-                      ? "bg-red-500/15 border border-red-500/25 text-red-300"
-                      : mintStatusText.includes("broadcasted") || mintStatusText.includes("successfully")
-                        ? "bg-green-500/15 border border-green-500/25 text-green-300"
-                        : "bg-blue-500/15 border border-blue-500/25 text-blue-300"
-                  }`}>
-                    {mintStatusText.includes("Failed") ? (
-                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    ) : (
-                      <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    )}
-                    <div className="space-y-1">
-                      <p className="font-medium leading-normal">{mintStatusText}</p>
-                      {mintTxHash && (
-                        <p className="text-[9px] font-mono text-white/40 break-all select-all">
-                          Tx Hash: {mintTxHash}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setSelectedMintToken(null);
-                      setMintTxHash(null);
-                      setMintStatusText("");
-                    }}
-                    className="flex-1 bg-white/5 hover:bg-white/10 text-white font-semibold text-xs py-3 rounded-2xl border border-white/10 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleMintInscribe}
-                    disabled={isMinting}
-                    className="flex-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs py-3 rounded-2xl shadow-lg shadow-blue-900/20 transition flex items-center justify-center gap-2"
-                  >
-                    <Coins className="w-4 h-4 animate-spin-slow" />
-                    {isMinting ? "Inscribing..." : `Inscribe ${selectedMintToken.mintLimit.toLocaleString()} $${selectedMintToken.ticker}`}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
           </div>
-        )}
-      </AnimatePresence>
 
-      {/* Footer layout */}
-      <footer className="border-t border-white/10 bg-black/40 py-6 px-4 md:px-6 text-center text-xs text-white/40 mt-auto space-y-2 backdrop-blur-md">
-        <div className="flex items-center justify-center gap-1.5 font-mono text-[10px]">
-          <Database className="w-3.5 h-3.5 text-white/30" />
-          <span>Base BRC-20 Protocol. Index Node V1.2.0-Alpha</span>
         </div>
-        <p>Built for the Base Farcaster Ecosystem. Fully compatible with Coinbase Wallet.</p>
+
+      </main>
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-slate-900 bg-slate-950 py-6 px-4 md:px-8 text-center text-xs text-slate-600" id="app_footer">
+        <p>© 2026 BRC-20 Ledger Dashboard. Experimental Bitcoin Token Standard Client Sandboxed Sandbox Environment.</p>
       </footer>
-    </div>
     </div>
   );
 }
