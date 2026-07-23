@@ -2898,30 +2898,76 @@ export default function Home() {
                 </div>
 
                 {/* Modal Footer Actions */}
-                <div className="px-6 py-4 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between" id="qr_modal_footer">
-                  <button
-                    onClick={() => {
-                      const svg = document.getElementById("inscription-qr-code-svg");
-                      if (!svg) return;
-                      const svgData = new XMLSerializer().serializeToString(svg);
-                      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-                      const svgUrl = URL.createObjectURL(svgBlob);
-                      const downloadLink = document.createElement("a");
-                      downloadLink.href = svgUrl;
-                      downloadLink.download = `brc20_inscription_${qrModalInscription.number}_qr.svg`;
-                      document.body.appendChild(downloadLink);
-                      downloadLink.click();
-                      document.body.removeChild(downloadLink);
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium font-mono transition-all border border-slate-700 shadow-sm cursor-pointer"
-                    id="download_qr_btn"
-                  >
-                    <Download className="w-4 h-4 text-amber-400" />
-                    Download QR (SVG)
-                  </button>
+                <div className="px-6 py-4 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between gap-3 flex-wrap" id="qr_modal_footer">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const svg = document.getElementById("inscription-qr-code-svg") as SVGSVGElement | null;
+                        if (!svg) return;
+                        const svgData = new XMLSerializer().serializeToString(svg);
+                        const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+                        const URLObj = window.URL || window.webkitURL || window;
+                        const svgUrl = URLObj.createObjectURL(svgBlob);
+
+                        const img = new Image();
+                        img.onload = () => {
+                          const canvas = document.createElement("canvas");
+                          const scale = 4; // High DPI rasterization for crisp PNG output
+                          const width = (svg.clientWidth || 200) * scale;
+                          const height = (svg.clientHeight || 200) * scale;
+                          canvas.width = width;
+                          canvas.height = height;
+
+                          const ctx = canvas.getContext("2d");
+                          if (!ctx) return;
+
+                          ctx.drawImage(img, 0, 0, width, height);
+
+                          canvas.toBlob((blob) => {
+                            if (!blob) return;
+                            const pngUrl = URLObj.createObjectURL(blob);
+                            const downloadLink = document.createElement("a");
+                            downloadLink.href = pngUrl;
+                            downloadLink.download = `brc20_inscription_${qrModalInscription.number}_qr.png`;
+                            document.body.appendChild(downloadLink);
+                            downloadLink.click();
+                            document.body.removeChild(downloadLink);
+                            URLObj.revokeObjectURL(pngUrl);
+                            URLObj.revokeObjectURL(svgUrl);
+                          }, "image/png");
+                        };
+                        img.src = svgUrl;
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold font-mono transition-all shadow-md shadow-amber-500/10 cursor-pointer"
+                      id="save_qr_png_btn"
+                    >
+                      <Download className="w-4 h-4 text-slate-950" />
+                      Save as PNG
+                    </button>
+                    <button
+                      onClick={() => {
+                        const svg = document.getElementById("inscription-qr-code-svg");
+                        if (!svg) return;
+                        const svgData = new XMLSerializer().serializeToString(svg);
+                        const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+                        const svgUrl = URL.createObjectURL(svgBlob);
+                        const downloadLink = document.createElement("a");
+                        downloadLink.href = svgUrl;
+                        downloadLink.download = `brc20_inscription_${qrModalInscription.number}_qr.svg`;
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium font-mono transition-all border border-slate-700 cursor-pointer"
+                      id="download_qr_svg_btn"
+                    >
+                      <Download className="w-3.5 h-3.5 text-amber-400" />
+                      SVG
+                    </button>
+                  </div>
                   <button
                     onClick={() => setQrModalInscription(null)}
-                    className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-all shadow-md shadow-amber-500/10 cursor-pointer"
+                    className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs font-mono transition-all border border-slate-700 cursor-pointer"
                     id="close_qr_modal_btn"
                   >
                     Done
