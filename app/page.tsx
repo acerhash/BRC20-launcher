@@ -21,7 +21,8 @@ import {
   X,
   Copy,
   Check,
-  Code2
+  Code2,
+  Palette
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Sparkline from "@/components/Sparkline";
@@ -225,6 +226,7 @@ export default function Home() {
   // QR Code Modal State
   const [qrModalInscription, setQrModalInscription] = useState<Inscription | null>(null);
   const [qrDataType, setQrDataType] = useState<"protocol" | "txhash" | "full">("protocol");
+  const [qrFgColor, setQrFgColor] = useState("#000000");
   const [copiedQrData, setCopiedQrData] = useState(false);
 
   // Helper to format payload for QR Code
@@ -997,15 +999,61 @@ export default function Home() {
 
                   {/* QR Visual Container */}
                   <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 border border-slate-800/80 rounded-xl gap-3" id="qr_display_container">
-                    <div className="p-4 bg-white rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center" id="qr_canvas_wrapper">
+                    <div className="p-4 bg-white rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all" id="qr_canvas_wrapper">
                       <QRCodeSVG
                         id="inscription-qr-code-svg"
                         value={getQrPayload(qrModalInscription, qrDataType)}
                         size={190}
                         level="H"
+                        fgColor={qrFgColor}
                         includeMargin={false}
                       />
                     </div>
+
+                    {/* Foreground Color Picker Bar */}
+                    <div className="flex items-center justify-between w-full max-w-sm px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl" id="qr_color_picker_bar">
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                        <Palette className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Foreground Color:</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {/* Preset Color Swatches */}
+                        {[
+                          { name: "Black", hex: "#000000" },
+                          { name: "BRC-20 Amber", hex: "#d97706" },
+                          { name: "Emerald", hex: "#059669" },
+                          { name: "Indigo", hex: "#4f46e5" },
+                          { name: "Crimson", hex: "#dc2626" },
+                        ].map((swatch) => (
+                          <button
+                            key={swatch.hex}
+                            onClick={() => setQrFgColor(swatch.hex)}
+                            className={`w-5 h-5 rounded-full transition-all border cursor-pointer ${
+                              qrFgColor.toLowerCase() === swatch.hex.toLowerCase()
+                                ? "scale-110 border-white ring-2 ring-amber-500/60 shadow-md"
+                                : "border-slate-700 hover:scale-105 opacity-80 hover:opacity-100"
+                            }`}
+                            style={{ backgroundColor: swatch.hex }}
+                            title={`${swatch.name} (${swatch.hex})`}
+                            id={`qr_swatch_${swatch.name.toLowerCase().replace(/\s+/g, "_")}`}
+                          />
+                        ))}
+                        {/* Custom Color Input */}
+                        <div className="relative flex items-center border-l border-slate-800 pl-2">
+                          <label className="relative flex items-center justify-center w-6 h-6 rounded-md bg-slate-800 border border-slate-700 hover:border-amber-500/50 cursor-pointer transition-all" title="Custom Hex Color">
+                            <input
+                              type="color"
+                              value={qrFgColor}
+                              onChange={(e) => setQrFgColor(e.target.value)}
+                              className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                              id="qr_custom_color_input"
+                            />
+                            <div className="w-3.5 h-3.5 rounded-full border border-slate-500" style={{ backgroundColor: qrFgColor }} />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
                     <p className="text-[11px] text-slate-400 text-center font-mono">
                       {qrDataType === "protocol" && "Scan to read BRC-20 JSON inscription protocol payload"}
                       {qrDataType === "txhash" && "Scan to open Bitcoin transaction URI reference"}
