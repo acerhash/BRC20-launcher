@@ -23,17 +23,18 @@ import {
   Check,
   Code2,
   Palette,
-  Blocks,
-  Layers,
-  Globe,
-  ArrowUpRight,
-  ShieldCheck,
-  Zap,
-  RefreshCw,
+  Rocket,
+  Receipt,
+  ShieldAlert,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Code,
   ExternalLink,
-  Share2,
-  ChevronRight,
-  Cpu
+  Layers,
+  Terminal,
+  ArrowRight,
+  Play
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Sparkline from "@/components/Sparkline";
@@ -71,42 +72,241 @@ interface LedgerBalance {
   lastUpdated: string;
 }
 
-interface BaseBlock {
-  number: number;
-  hash: string;
-  txCount: number;
-  gasUsed: string;
-  gasLimit: string;
-  timestamp: string;
-  sequencer: string;
-}
-
-interface BaseTx {
-  hash: string;
-  blockNumber: number;
-  from: string;
-  fromBasename?: string;
-  to: string;
-  toBasename?: string;
-  value: string;
-  method: "swap" | "transfer" | "mint" | "wallet_sendCalls" | "paymaster_sponsor";
-  status: "success" | "pending";
-  gasFee: string;
-  sponsored: boolean;
-  timestamp: string;
-}
-
-interface BaseEcosystemToken {
+// B20 Token Standard Interfaces for Base
+interface B20Token {
+  id: string;
   name: string;
   symbol: string;
-  address: string;
   decimals: number;
-  priceUsd: string;
-  volume24h: string;
-  holders: number;
-  category: "DeFi" | "Meme" | "AI" | "Infra";
-  logoColor: string;
+  totalSupplyCap: number;
+  currentSupply: number;
+  contractAddress: string;
+  paused: boolean;
+  policy: "Open" | "Allowlist" | "KYC Restricted";
+  deployer: string;
+  launchedAt: string;
+  supportsMemo: boolean;
+  memosCount: number;
 }
+
+interface B20OrderPayment {
+  id: string;
+  orderId: string;
+  tokenSymbol: string;
+  tokenAddress: string;
+  merchantAddress: string;
+  payerAddress: string;
+  amount: number;
+  memoBytes32: string;
+  status: "confirmed" | "reverted_policy" | "reverted_paused";
+  revertReason?: string;
+  txHash: string;
+  blockNumber: number;
+  timestamp: string;
+}
+
+// Initial Base B20 Tokens Data
+const INITIAL_B20_TOKENS: B20Token[] = [
+  {
+    id: "b20-1",
+    name: "Base Cash",
+    symbol: "BCASH",
+    decimals: 18,
+    totalSupplyCap: 100000000,
+    currentSupply: 24500000,
+    contractAddress: "0xB200a891f7c22e20b2f9104e129bc83a12901402",
+    paused: false,
+    policy: "Open",
+    deployer: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    launchedAt: "2026-07-01 10:00:00",
+    supportsMemo: true,
+    memosCount: 142
+  },
+  {
+    id: "b20-2",
+    name: "Base Builder Token",
+    symbol: "BUILD",
+    decimals: 18,
+    totalSupplyCap: 10000000,
+    currentSupply: 3200000,
+    contractAddress: "0xB200b2014092491a92a101f20102b109401290a1",
+    paused: false,
+    policy: "Open",
+    deployer: "0x324082901a87b9c0214a1f9028a019e840129bc2",
+    launchedAt: "2026-07-05 14:20:00",
+    supportsMemo: true,
+    memosCount: 89
+  },
+  {
+    id: "b20-3",
+    name: "Regulated Pay Token",
+    symbol: "RPAY",
+    decimals: 6,
+    totalSupplyCap: 5000000,
+    currentSupply: 1200000,
+    contractAddress: "0xB200c9210058201a052028109310a019482019c3",
+    paused: true,
+    policy: "Allowlist",
+    deployer: "0x892a014920194b0291a0293019a820391092a01f",
+    launchedAt: "2026-07-12 11:15:00",
+    supportsMemo: true,
+    memosCount: 18
+  }
+];
+
+// Initial B20 Memo Payments Reconciled Data
+const INITIAL_B20_ORDERS: B20OrderPayment[] = [
+  {
+    id: "pay-101",
+    orderId: "order-42",
+    tokenSymbol: "BCASH",
+    tokenAddress: "0xB200a891f7c22e20b2f9104e129bc83a12901402",
+    merchantAddress: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    payerAddress: "0x324082901a87b9c0214a1f9028a019e840129bc2",
+    amount: 10.0,
+    memoBytes32: "0x6f726465722d3432000000000000000000000000000000000000000000000000",
+    status: "confirmed",
+    txHash: "0x91f82b7c0921a83019a0293f0192a8301f201032901a839210f01289389201af",
+    blockNumber: 18940210,
+    timestamp: "2026-07-20 16:20:11"
+  },
+  {
+    id: "pay-102",
+    orderId: "order-88",
+    tokenSymbol: "BUILD",
+    tokenAddress: "0xB200b2014092491a92a101f20102b109401290a1",
+    merchantAddress: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    payerAddress: "0x90281a0293019a820391092a01f892a014920194",
+    amount: 250.0,
+    memoBytes32: "0x6f726465722d3838000000000000000000000000000000000000000000000000",
+    status: "confirmed",
+    txHash: "0x3e18a2093f102938a0192a8301f201032901a839210f01289389201af9102931",
+    blockNumber: 18942104,
+    timestamp: "2026-07-21 11:05:40"
+  },
+  {
+    id: "pay-103",
+    orderId: "order-99",
+    tokenSymbol: "RPAY",
+    tokenAddress: "0xB200c9210058201a052028109310a019482019c3",
+    merchantAddress: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    payerAddress: "0x892a014920194b0291a0293019a820391092a01f",
+    amount: 50.0,
+    memoBytes32: "0x6f726465722d3939000000000000000000000000000000000000000000000000",
+    status: "reverted_paused",
+    revertReason: "TransferFailed: Token transfers are currently paused by the issuer",
+    txHash: "0x7a910293819028301f201032901a839210f01289389201af9102931830192a83",
+    blockNumber: 18943500,
+    timestamp: "2026-07-22 09:12:30"
+  }
+];
+
+// Integration Code Snippets for Base B20
+const VIEM_PAYMENT_CODE_SNIPPET = `import { createPublicClient, createWalletClient, http, parseUnits, stringToHex, hexToString, parseEventLogs } from 'viem';
+import { base } from 'viem/chains';
+
+// 1. Define Base B20 Token & Merchant parameters
+const B20_TOKEN_ADDRESS = '0xB200a891f7c22e20b2f9104e129bc83a12901402'; // Deployed B20 Token
+const MERCHANT_WALLET   = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'; // Recipient
+
+// 2. B20 Minimal ABI (transferWithMemo & Memo Event)
+const B20_ABI = [
+  {
+    type: 'function',
+    name: 'transferWithMemo',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'memo', type: 'bytes32' }
+    ],
+    outputs: [{ type: 'bool' }]
+  },
+  {
+    type: 'event',
+    name: 'Memo',
+    inputs: [
+      { name: 'caller', type: 'address', indexed: true },
+      { name: 'memo', type: 'bytes32', indexed: true }
+    ]
+  }
+] as const;
+
+export async function payWithB20Memo(orderId: string, amountTokens: string) {
+  // Convert Order ID to bytes32 memo
+  const memoBytes32 = stringToHex(orderId, { size: 32 });
+
+  // Execute transferWithMemo on Base Network
+  const hash = await walletClient.writeContract({
+    address: B20_TOKEN_ADDRESS,
+    abi: B20_ABI,
+    functionName: 'transferWithMemo',
+    args: [MERCHANT_WALLET, parseUnits(amountTokens, 18), memoBytes32],
+  });
+
+  // Wait for receipt and extract Memo event log
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  const memoLogs = parseEventLogs({
+    abi: B20_ABI,
+    logs: receipt.logs,
+    eventName: 'Memo',
+  });
+
+  const reconciledOrderId = hexToString(memoLogs[0].args.memo, { size: 32 }).replace(/\\0+$/, '');
+  console.log('Successfully reconciled B20 payment for Order ID:', reconciledOrderId);
+  return { hash, reconciledOrderId };
+}`;
+
+const SOLIDITY_B20_CODE_SNIPPET = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+/**
+ * @title Base B20 Token Standard Implementation
+ * @notice ERC-20 superset adding transferWithMemo, supply caps, pausing, and policy compliance.
+ */
+contract BaseB20Token is ERC20, ERC20Permit, Ownable {
+    uint8 private immutable _customDecimals;
+    uint256 public immutable maxCap;
+    bool public paused;
+
+    event Memo(address indexed caller, bytes32 indexed memo);
+
+    error PolicyForbids(address sender, address recipient);
+    error TokenPaused();
+    error MaxCapExceeded();
+
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint8 decimals_,
+        uint256 maxCap_
+    ) ERC20(name, symbol) ERC20Permit(name) Ownable(msg.sender) {
+        _customDecimals = decimals_;
+        maxCap = maxCap_;
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _customDecimals;
+    }
+
+    /**
+     * @notice Transfer tokens tagged with an onchain order ID memo
+     */
+    function transferWithMemo(address to, uint256 amount, bytes32 memo) external returns (bool) {
+        if (paused) revert TokenPaused();
+        _transfer(msg.sender, to, amount);
+        emit Memo(msg.sender, memo);
+        return true;
+    }
+
+    function setPaused(bool state) external onlyOwner {
+        paused = state;
+    }
+}`;
 
 // Initial realistic BRC-20 Mock Data
 const INITIAL_TOKENS: BRC20Token[] = [
@@ -255,198 +455,8 @@ const INITIAL_LEDGER: LedgerBalance[] = [
   }
 ];
 
-const INITIAL_BASE_BLOCKS: BaseBlock[] = [
-  {
-    number: 20491832,
-    hash: "0x89f2a410b8d34e9f012c87b4129e09d8e7c2a101",
-    txCount: 42,
-    gasUsed: "3.42 M (22.8%)",
-    gasLimit: "15.00 M",
-    timestamp: "1 sec ago",
-    sequencer: "Base Sequencer Node 01"
-  },
-  {
-    number: 20491831,
-    hash: "0x12c4b8e90a1f2e3d4c5b6a7f8e9d0c1b2a3f98b0",
-    txCount: 38,
-    gasUsed: "2.95 M (19.6%)",
-    gasLimit: "15.00 M",
-    timestamp: "3 secs ago",
-    sequencer: "Base Sequencer Node 01"
-  },
-  {
-    number: 20491830,
-    hash: "0x4e8d2c10a3f98b7c6d5e4f3a2b1c0d9e8f7a45a1",
-    txCount: 56,
-    gasUsed: "4.81 M (32.0%)",
-    gasLimit: "15.00 M",
-    timestamp: "5 secs ago",
-    sequencer: "Base Sequencer Node 02"
-  },
-  {
-    number: 20491829,
-    hash: "0x7a3f9e01b2c4d5e6f7a8b9c0d1e2f3a4b5c612e8",
-    txCount: 29,
-    gasUsed: "2.10 M (14.0%)",
-    gasLimit: "15.00 M",
-    timestamp: "7 secs ago",
-    sequencer: "Base Sequencer Node 01"
-  },
-  {
-    number: 20491828,
-    hash: "0x3b1c8e90f2a4b5c6d7e8f9a0b1c2d3e4f5a689d3",
-    txCount: 64,
-    gasUsed: "5.30 M (35.3%)",
-    gasLimit: "15.00 M",
-    timestamp: "9 secs ago",
-    sequencer: "Base Sequencer Node 03"
-  }
-];
-
-const INITIAL_BASE_TXS: BaseTx[] = [
-  {
-    hash: "0x9a8f2e1b4c7d6e5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f10",
-    blockNumber: 20491832,
-    from: "0x3a429f0a12b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7",
-    fromBasename: "jesse.base",
-    to: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    toBasename: "usdc.base",
-    value: "250.00 USDC",
-    method: "transfer",
-    status: "success",
-    gasFee: "$0.0001 (0.00000003 ETH)",
-    sponsored: true,
-    timestamp: "1 sec ago"
-  },
-  {
-    hash: "0x4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a9b8c7d6e5f4a3b21",
-    blockNumber: 20491832,
-    from: "0x18b2209f89a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5",
-    fromBasename: "buildonbase.base",
-    to: "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0",
-    toBasename: "aerodrome.base",
-    value: "1.25 ETH",
-    method: "swap",
-    status: "success",
-    gasFee: "$0.0003 (0.0000001 ETH)",
-    sponsored: false,
-    timestamp: "2 secs ago"
-  },
-  {
-    hash: "0x7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e",
-    blockNumber: 20491831,
-    from: "0x892a1a11b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7",
-    fromBasename: "coinbase.base",
-    to: "0x0000000000770505b2628e83042079c657930928",
-    toBasename: "paymaster.base",
-    value: "0.00 ETH",
-    method: "paymaster_sponsor",
-    status: "success",
-    gasFee: "$0.0000 (Gas Sponsored)",
-    sponsored: true,
-    timestamp: "3 secs ago"
-  },
-  {
-    hash: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
-    blockNumber: 20491830,
-    from: "0x5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a",
-    fromBasename: "alice.base",
-    to: "0x532f27101965dd16442E59d40670FaF5eBB142E4",
-    toBasename: "brett.base",
-    value: "5,000 BRETT",
-    method: "wallet_sendCalls",
-    status: "success",
-    gasFee: "$0.0002 (Batch Call)",
-    sponsored: true,
-    timestamp: "5 secs ago"
-  },
-  {
-    hash: "0x8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a",
-    blockNumber: 20491829,
-    from: "0x2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f",
-    fromBasename: "degen.base",
-    to: "0x4ed4E862860beD51a9570b96d89af5E1B0Efefed",
-    toBasename: "degentoken.base",
-    value: "12,500 DEGEN",
-    method: "mint",
-    status: "success",
-    gasFee: "$0.0001 (0.00000004 ETH)",
-    sponsored: true,
-    timestamp: "7 secs ago"
-  }
-];
-
-const INITIAL_BASE_TOKENS: BaseEcosystemToken[] = [
-  {
-    name: "USD Coin",
-    symbol: "USDC",
-    address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    decimals: 6,
-    priceUsd: "$1.00",
-    volume24h: "$182,400,000",
-    holders: 1240500,
-    category: "DeFi",
-    logoColor: "bg-blue-500"
-  },
-  {
-    name: "Aerodrome Finance",
-    symbol: "AERO",
-    address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
-    decimals: 18,
-    priceUsd: "$1.24",
-    volume24h: "$42,100,000",
-    holders: 184200,
-    category: "DeFi",
-    logoColor: "bg-sky-500"
-  },
-  {
-    name: "BRETT",
-    symbol: "BRETT",
-    address: "0x532f27101965dd16442E59d40670FaF5eBB142E4",
-    decimals: 18,
-    priceUsd: "$0.142",
-    volume24h: "$28,900,000",
-    holders: 310500,
-    category: "Meme",
-    logoColor: "bg-emerald-500"
-  },
-  {
-    name: "DEGEN",
-    symbol: "DEGEN",
-    address: "0x4ed4E862860beD51a9570b96d89af5E1B0Efefed",
-    decimals: 18,
-    priceUsd: "$0.0089",
-    volume24h: "$15,800,000",
-    holders: 245000,
-    category: "Meme",
-    logoColor: "bg-purple-500"
-  },
-  {
-    name: "Virtual Protocol",
-    symbol: "VIRTUAL",
-    address: "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b",
-    decimals: 18,
-    priceUsd: "$1.85",
-    volume24h: "$34,200,000",
-    holders: 98400,
-    category: "AI",
-    logoColor: "bg-indigo-500"
-  },
-  {
-    name: "TOSHI",
-    symbol: "TOSHI",
-    address: "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4",
-    decimals: 18,
-    priceUsd: "$0.00031",
-    volume24h: "$8,100,000",
-    holders: 112000,
-    category: "Meme",
-    logoColor: "bg-blue-400"
-  }
-];
-
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "base">("tokens");
+  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments">("tokens");
   const [searchQuery, setSearchQuery] = useState("");
   const [mintFilter, setMintFilter] = useState<"all" | "completed" | "inprogress">("all");
 
@@ -455,63 +465,34 @@ export default function Home() {
   const [inscriptions, setInscriptions] = useState<Inscription[]>(INITIAL_INSCRIPTIONS);
   const [ledger, setLedger] = useState<LedgerBalance[]>(INITIAL_LEDGER);
 
-  // Base Blockchain Explorer state
-  const [baseBlocks, setBaseBlocks] = useState<BaseBlock[]>(INITIAL_BASE_BLOCKS);
-  const [baseTxs, setBaseTxs] = useState<BaseTx[]>(INITIAL_BASE_TXS);
-  const [baseSubTab, setBaseSubTab] = useState<"txs" | "blocks" | "tokens" | "paymaster">("txs");
-  const [baseSearchQuery, setBaseSearchQuery] = useState("");
-  const [baseChainId, setBaseChainId] = useState<8453 | 84532>(8453); // 8453: Base Mainnet, 84532: Base Sepolia
+  // Base B20 Standard States
+  const [b20Tokens, setB20Tokens] = useState<B20Token[]>(INITIAL_B20_TOKENS);
+  const [b20Orders, setB20Orders] = useState<B20OrderPayment[]>(INITIAL_B20_ORDERS);
 
-  // Base Inspector Modals
-  const [inspectTx, setInspectTx] = useState<BaseTx | null>(null);
-  const [inspectBlock, setInspectBlock] = useState<BaseBlock | null>(null);
-  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  // B20 Launchpad Form States
+  const [launchName, setLaunchName] = useState("");
+  const [launchSymbol, setLaunchSymbol] = useState("");
+  const [launchDecimals, setLaunchDecimals] = useState<number>(18);
+  const [launchCap, setLaunchCap] = useState<number>(10000000);
+  const [launchPolicy, setLaunchPolicy] = useState<"Open" | "Allowlist" | "KYC Restricted">("Open");
+  const [isDeployingB20, setIsDeployingB20] = useState(false);
+  const [deployStep, setDeployStep] = useState(0);
+  const [b20DeployToast, setB20DeployToast] = useState<string | null>(null);
 
-  // Real-time Base L2 Block & Tx ticker simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setBaseBlocks((prevBlocks) => {
-        const topBlockNum = prevBlocks.length > 0 ? prevBlocks[0].number + 1 : 20491833;
-        const randomHex = () => Math.random().toString(16).substring(2, 10);
-        const newBlock: BaseBlock = {
-          number: topBlockNum,
-          hash: `0x${randomHex()}${randomHex()}${randomHex()}${randomHex()}`,
-          txCount: Math.floor(Math.random() * 40) + 15,
-          gasUsed: `${(Math.random() * 3 + 2).toFixed(2)} M (${(Math.random() * 15 + 15).toFixed(1)}%)`,
-          gasLimit: "15.00 M",
-          timestamp: "Just now",
-          sequencer: `Base Sequencer Node 0${Math.floor(Math.random() * 3) + 1}`
-        };
-        return [newBlock, ...prevBlocks.slice(0, 9)];
-      });
+  // B20 Payment Form States
+  const [payTokenAddress, setPayTokenAddress] = useState<string>("0xB200a891f7c22e20b2f9104e129bc83a12901402");
+  const [payOrderId, setPayOrderId] = useState("order-101");
+  const [payAmount, setPayAmount] = useState<number>(10.0);
+  const [payMerchant, setPayMerchant] = useState("0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
+  const [payPayer, setPayPayer] = useState("0x324082901a87b9c0214a1f9028a019e840129bc2");
+  const [simRevertMode, setSimRevertMode] = useState<"none" | "policy" | "paused">("none");
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentToast, setPaymentToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-      setBaseTxs((prevTxs) => {
-        const randomHex = () => Math.random().toString(16).substring(2, 10);
-        const basenames = ["alex.base", "coinbase.base", "buildonbase.base", "jesse.base", "farcaster.base", "brian.base"];
-        const methods: BaseTx["method"][] = ["swap", "transfer", "mint", "wallet_sendCalls", "paymaster_sponsor"];
-        const pickMethod = methods[Math.floor(Math.random() * methods.length)];
-        const pickFrom = basenames[Math.floor(Math.random() * basenames.length)];
-
-        const newTx: BaseTx = {
-          hash: `0x${randomHex()}${randomHex()}${randomHex()}${randomHex()}${randomHex()}`,
-          blockNumber: baseBlocks.length > 0 ? baseBlocks[0].number : 20491833,
-          from: `0x${randomHex()}${randomHex()}${randomHex()}`,
-          fromBasename: pickFrom,
-          to: `0x${randomHex()}${randomHex()}${randomHex()}`,
-          toBasename: "contract.base",
-          value: pickMethod === "swap" ? `${(Math.random() * 2 + 0.1).toFixed(2)} ETH` : `${Math.floor(Math.random() * 500 + 10)} USDC`,
-          method: pickMethod,
-          status: "success",
-          gasFee: pickMethod === "paymaster_sponsor" ? "$0.0000 (Gas Sponsored)" : "$0.0001 (0.00000003 ETH)",
-          sponsored: Math.random() > 0.3,
-          timestamp: "Just now"
-        };
-        return [newTx, ...prevTxs.slice(0, 14)];
-      });
-    }, 6000);
-
-    return () => clearInterval(interval);
-  }, [baseBlocks]);
+  // Code Modal / Snippet Viewer State
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [codeSnippetType, setCodeSnippetType] = useState<"viem_pay" | "solidity_b20">("viem_pay");
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
 
   // Inscribe simulator fields
   const [simTicker, setSimTicker] = useState("base");
@@ -525,6 +506,196 @@ export default function Home() {
   const [qrFgColor, setQrFgColor] = useState("#000000");
   const [qrBgColor, setQrBgColor] = useState("#ffffff");
   const [copiedQrData, setCopiedQrData] = useState(false);
+
+  // Helper bytes32 converters
+  const stringToBytes32 = (str: string) => {
+    let hex = "0x";
+    for (let i = 0; i < str.length && i < 32; i++) {
+      hex += str.charCodeAt(i).toString(16).padStart(2, "0");
+    }
+    return hex.padEnd(66, "0");
+  };
+
+  const bytes32ToString = (bytes32: string) => {
+    if (!bytes32.startsWith("0x")) return bytes32;
+    let hex = bytes32.slice(2);
+    let str = "";
+    for (let i = 0; i < hex.length; i += 2) {
+      const code = parseInt(hex.substr(i, 2), 16);
+      if (code === 0) break;
+      str += String.fromCharCode(code);
+    }
+    return str;
+  };
+
+  // Deploy B20 Token Handler
+  const handleLaunchB20Token = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!launchName.trim() || !launchSymbol.trim()) return;
+
+    setIsDeployingB20(true);
+    setDeployStep(1);
+
+    setTimeout(() => setDeployStep(2), 1000);
+    setTimeout(() => setDeployStep(3), 2000);
+    setTimeout(() => {
+      setDeployStep(4);
+      const cleanSymbol = launchSymbol.trim().toUpperCase();
+      const randomHex = Math.random().toString(16).substring(2, 12);
+      const contractAddress = `0xB200${cleanSymbol.slice(0, 4).padEnd(4, "0").toLowerCase()}${randomHex}01a8`;
+      const nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+      const newB20: B20Token = {
+        id: `b20-${Date.now()}`,
+        name: launchName.trim(),
+        symbol: cleanSymbol,
+        decimals: launchDecimals,
+        totalSupplyCap: launchCap,
+        currentSupply: 0,
+        contractAddress,
+        paused: false,
+        policy: launchPolicy,
+        deployer: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+        launchedAt: nowStr,
+        supportsMemo: true,
+        memosCount: 0
+      };
+
+      setB20Tokens((prev) => [newB20, ...prev]);
+      setIsDeployingB20(false);
+      setDeployStep(0);
+      setLaunchName("");
+      setLaunchSymbol("");
+      setB20DeployToast(`B20 Token ${cleanSymbol} deployed on Base at ${contractAddress.slice(0, 10)}...!`);
+      setTimeout(() => setB20DeployToast(null), 5000);
+    }, 3000);
+  };
+
+  // Toggle Pause on B20 Token
+  const handleTogglePauseB20Token = (address: string) => {
+    setB20Tokens((prev) =>
+      prev.map((t) => {
+        if (t.contractAddress.toLowerCase() === address.toLowerCase()) {
+          return { ...t, paused: !t.paused };
+        }
+        return t;
+      })
+    );
+  };
+
+  // Execute Accept B20 Payment with Memo
+  const handleExecuteB20Payment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payOrderId.trim() || payAmount <= 0) return;
+
+    const matchedToken = b20Tokens.find(
+      (t) => t.contractAddress.toLowerCase() === payTokenAddress.toLowerCase()
+    );
+
+    const tokenSymbol = matchedToken ? matchedToken.symbol : "B20";
+    setIsProcessingPayment(true);
+    setPaymentToast(null);
+
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+
+      // Check Revert Conditions
+      if (simRevertMode === "paused" || (matchedToken && matchedToken.paused)) {
+        const revertReason = "TransferFailed: Token transfers are currently paused by issuer (TRANSFER feature disabled)";
+        const newOrder: B20OrderPayment = {
+          id: `pay-${Date.now()}`,
+          orderId: payOrderId.trim(),
+          tokenSymbol,
+          tokenAddress: payTokenAddress,
+          merchantAddress: payMerchant,
+          payerAddress: payPayer,
+          amount: payAmount,
+          memoBytes32: stringToBytes32(payOrderId.trim()),
+          status: "reverted_paused",
+          revertReason,
+          txHash: `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`,
+          blockNumber: 18944100 + b20Orders.length,
+          timestamp: new Date().toISOString().replace("T", " ").substring(0, 19)
+        };
+        setB20Orders((prev) => [newOrder, ...prev]);
+        setPaymentToast({
+          message: `Transaction Reverted: ${revertReason}`,
+          type: "error"
+        });
+        return;
+      }
+
+      if (simRevertMode === "policy" || (matchedToken && matchedToken.policy !== "Open")) {
+        const revertReason = "PolicyForbids: Sender or recipient address is not authorized under token transfer policy";
+        const newOrder: B20OrderPayment = {
+          id: `pay-${Date.now()}`,
+          orderId: payOrderId.trim(),
+          tokenSymbol,
+          tokenAddress: payTokenAddress,
+          merchantAddress: payMerchant,
+          payerAddress: payPayer,
+          amount: payAmount,
+          memoBytes32: stringToBytes32(payOrderId.trim()),
+          status: "reverted_policy",
+          revertReason,
+          txHash: `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`,
+          blockNumber: 18944100 + b20Orders.length,
+          timestamp: new Date().toISOString().replace("T", " ").substring(0, 19)
+        };
+        setB20Orders((prev) => [newOrder, ...prev]);
+        setPaymentToast({
+          message: `Transaction Reverted: ${revertReason}`,
+          type: "error"
+        });
+        return;
+      }
+
+      // Success Payment
+      const memoHex = stringToBytes32(payOrderId.trim());
+      const txHash = `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`;
+      const nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+      const confirmedOrder: B20OrderPayment = {
+        id: `pay-${Date.now()}`,
+        orderId: payOrderId.trim(),
+        tokenSymbol,
+        tokenAddress: payTokenAddress,
+        merchantAddress: payMerchant,
+        payerAddress: payPayer,
+        amount: payAmount,
+        memoBytes32: memoHex,
+        status: "confirmed",
+        txHash,
+        blockNumber: 18944100 + b20Orders.length,
+        timestamp: nowStr
+      };
+
+      setB20Orders((prev) => [confirmedOrder, ...prev]);
+
+      // Increment token memo count & current supply
+      setB20Tokens((prev) =>
+        prev.map((t) => {
+          if (t.contractAddress.toLowerCase() === payTokenAddress.toLowerCase()) {
+            return {
+              ...t,
+              memosCount: t.memosCount + 1,
+              currentSupply: t.currentSupply + payAmount
+            };
+          }
+          return t;
+        })
+      );
+
+      setPaymentToast({
+        message: `Payment Confirmed! Read Memo event log for order "${payOrderId.trim()}". Tx: ${txHash.slice(0, 10)}...`,
+        type: "success"
+      });
+
+      // Increment default order ID for easy consecutive testing
+      const orderNum = parseInt(payOrderId.replace(/\D/g, "")) || 100;
+      setPayOrderId(`order-${orderNum + 1}`);
+    }, 1500);
+  };
 
   // Helper to format payload for QR Code
   const getQrPayload = (insc: Inscription, type: "protocol" | "txhash" | "full") => {
@@ -751,11 +922,6 @@ export default function Home() {
             <span className="font-bold font-mono text-white">854,228</span>
           </div>
           <div className="flex items-center gap-1.5 border-r border-slate-800 pr-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-            <span className="font-mono text-slate-400">Base L2:</span>
-            <span className="font-bold font-mono text-blue-400">#{baseBlocks[0]?.number || 20491832}</span>
-          </div>
-          <div className="flex items-center gap-1.5 border-r border-slate-800 pr-4">
             <Activity className="w-3.5 h-3.5 text-amber-500" />
             <span>Inscriptions:</span>
             <span className="font-bold font-mono text-white">{stats.totalInscriptions}</span>
@@ -903,10 +1069,10 @@ export default function Home() {
           
           {/* Navigation Tab bar & Search controls */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-2 rounded-2xl" id="tab_control_container">
-            <div className="flex items-center gap-1" id="tab_buttons_group">
+            <div className="flex flex-wrap items-center gap-1" id="tab_buttons_group">
               <button
                 onClick={() => setActiveTab("tokens")}
-                className={`flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all ${
                   activeTab === "tokens"
                     ? "bg-slate-800 text-white shadow"
                     : "text-slate-400 hover:text-slate-200"
@@ -914,11 +1080,11 @@ export default function Home() {
                 id="tab_btn_tokens"
               >
                 <TrendingUp className="w-4 h-4" />
-                Tokens
+                BRC-20 Tokens
               </button>
               <button
                 onClick={() => setActiveTab("inscriptions")}
-                className={`flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all ${
                   activeTab === "inscriptions"
                     ? "bg-slate-800 text-white shadow"
                     : "text-slate-400 hover:text-slate-200"
@@ -926,11 +1092,11 @@ export default function Home() {
                 id="tab_btn_inscriptions"
               >
                 <FileText className="w-4 h-4" />
-                My Inscriptions
+                Inscriptions
               </button>
               <button
                 onClick={() => setActiveTab("ledger")}
-                className={`flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all ${
                   activeTab === "ledger"
                     ? "bg-slate-800 text-white shadow"
                     : "text-slate-400 hover:text-slate-200"
@@ -941,19 +1107,28 @@ export default function Home() {
                 Ledger
               </button>
               <button
-                onClick={() => setActiveTab("base")}
-                className={`flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
-                  activeTab === "base"
-                    ? "bg-blue-600 text-white shadow shadow-blue-600/30 font-bold"
+                onClick={() => setActiveTab("b20_launchpad")}
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all ${
+                  activeTab === "b20_launchpad"
+                    ? "bg-blue-600 text-white font-semibold shadow-lg shadow-blue-500/20"
                     : "text-blue-400 hover:text-blue-300 hover:bg-blue-950/40"
                 }`}
-                id="tab_btn_base"
+                id="tab_btn_b20_launchpad"
               >
-                <Blocks className="w-4 h-4 text-blue-400" />
-                Base L2
-                <span className="text-[9px] bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold px-1.5 py-0.5 rounded-full uppercase">
-                  Explorer
-                </span>
+                <Rocket className="w-4 h-4 text-blue-300" />
+                Base B20 Launchpad
+              </button>
+              <button
+                onClick={() => setActiveTab("b20_payments")}
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all ${
+                  activeTab === "b20_payments"
+                    ? "bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-500/20"
+                    : "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40"
+                }`}
+                id="tab_btn_b20_payments"
+              >
+                <Receipt className="w-4 h-4 text-emerald-300" />
+                B20 Payments & Memos
               </button>
             </div>
 
@@ -991,6 +1166,20 @@ export default function Home() {
                 >
                   <Download className="w-3.5 h-3.5 text-amber-500" />
                   Export to JSON
+                </button>
+              )}
+
+              {(activeTab === "b20_launchpad" || activeTab === "b20_payments") && (
+                <button
+                  onClick={() => {
+                    setCodeSnippetType(activeTab === "b20_launchpad" ? "solidity_b20" : "viem_pay");
+                    setCodeModalOpen(true);
+                  }}
+                  className="bg-blue-950/80 hover:bg-blue-900 border border-blue-800/80 text-blue-300 text-xs py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all font-medium cursor-pointer"
+                  id="btn_view_b20_code"
+                >
+                  <Code className="w-3.5 h-3.5 text-blue-400" />
+                  Integration Code
                 </button>
               )}
             </div>
@@ -1238,422 +1427,569 @@ export default function Home() {
               </div>
             )}
 
-            {/* 4. BASE L2 BLOCKCHAIN EXPLORER TAB */}
-            {activeTab === "base" && (
-              <div className="flex flex-col gap-6" id="base_tab_content">
-                {/* Base Banner & Chain Selector */}
-                <div className="bg-gradient-to-r from-blue-950/60 via-slate-900 to-slate-900 border border-blue-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden" id="base_banner_card">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-blue-600/30">
-                        🔵
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-bold text-white">Base Layer-2 Blockchain</h3>
-                          <span className="text-[10px] font-mono px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-full font-semibold">
-                            OP Stack L2
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-300 mt-1">
-                          Incubated by Coinbase. Fast, secure, sub-cent Ethereum L2 with native Basenames & Paymaster support.
-                        </p>
-                      </div>
+            {/* 4. BASE B20 LAUNCHPAD TAB */}
+            {activeTab === "b20_launchpad" && (
+              <div className="flex flex-col gap-6" id="b20_launchpad_tab_content">
+                {/* Hero Feature Banner */}
+                <div className="bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/80 border border-blue-800/50 rounded-2xl p-6 shadow-xl relative overflow-hidden" id="b20_launchpad_hero">
+                  <div className="absolute right-0 top-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+                  <div className="flex items-start gap-4 relative z-10">
+                    <div className="p-3 bg-blue-600/20 border border-blue-500/30 rounded-xl text-blue-400 shrink-0">
+                      <Rocket className="w-6 h-6 text-blue-400" />
                     </div>
-
-                    {/* Chain ID Selector */}
-                    <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl p-1.5 self-start md:self-auto" id="base_chain_selector">
-                      <button
-                        onClick={() => setBaseChainId(8453)}
-                        className={`px-3 py-1 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
-                          baseChainId === 8453
-                            ? "bg-blue-600 text-white shadow"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                        id="btn_chain_mainnet"
-                      >
-                        Mainnet (8453)
-                      </button>
-                      <button
-                        onClick={() => setBaseChainId(84532)}
-                        className={`px-3 py-1 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
-                          baseChainId === 84532
-                            ? "bg-blue-600 text-white shadow"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                        id="btn_chain_sepolia"
-                      >
-                        Sepolia (84532)
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Base Network Key Metrics Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-800/80" id="base_metrics_grid">
-                    <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3">
-                      <span className="text-[10px] font-mono text-slate-400 uppercase block">Latest L2 Block</span>
-                      <span className="text-sm font-bold font-mono text-blue-400">#{baseBlocks[0]?.number || 20491832}</span>
-                    </div>
-                    <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3">
-                      <span className="text-[10px] font-mono text-slate-400 uppercase block">Average Gas Fee</span>
-                      <span className="text-sm font-bold font-mono text-emerald-400">~0.001 Gwei ($0.0002)</span>
-                    </div>
-                    <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3">
-                      <span className="text-[10px] font-mono text-slate-400 uppercase block">Throughput</span>
-                      <span className="text-sm font-bold font-mono text-white">38.4 TPS</span>
-                    </div>
-                    <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3">
-                      <span className="text-[10px] font-mono text-slate-400 uppercase block">Paymaster Status</span>
-                      <span className="text-sm font-bold font-mono text-blue-300 flex items-center gap-1">
-                        <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> Active
-                      </span>
+                    <div>
+                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        Launch a B20 Token on Base
+                        <span className="text-[10px] font-mono px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">ERC-20 Superset</span>
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        B20 extends standard ERC-20 with built-in onchain memos (<code className="font-mono text-blue-300">transferWithMemo</code>), customizable transfer policies, pausing controls, supply caps, and EIP-2612 permits. Any app accepting ERC-20 accepts B20 with zero code changes.
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Base Explorer Sub-navigation & Search */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-4" id="base_subnav_wrapper">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    {/* Sub tabs */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0" id="base_subtabs_group">
+                {/* Deploy Toast Notification */}
+                <AnimatePresence>
+                  {b20DeployToast && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs rounded-xl flex items-center justify-between shadow-lg"
+                      id="b20_deploy_toast"
+                    >
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <span className="font-semibold">{b20DeployToast}</span>
+                      </div>
                       <button
-                        onClick={() => setBaseSubTab("txs")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                          baseSubTab === "txs"
-                            ? "bg-blue-600/20 text-blue-300 border border-blue-500/40"
-                            : "text-slate-400 hover:text-white bg-slate-950 border border-slate-800"
-                        }`}
-                        id="base_subtab_txs"
+                        onClick={() => {
+                          setCodeSnippetType("viem_pay");
+                          setCodeModalOpen(true);
+                        }}
+                        className="px-3 py-1 bg-emerald-500 text-slate-950 font-bold rounded-lg text-[11px] hover:bg-emerald-400 transition-all cursor-pointer"
                       >
-                        <Activity className="w-3.5 h-3.5 text-blue-400" />
-                        Transactions ({baseTxs.length})
+                        Accept Payments Now
                       </button>
-                      <button
-                        onClick={() => setBaseSubTab("blocks")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                          baseSubTab === "blocks"
-                            ? "bg-blue-600/20 text-blue-300 border border-blue-500/40"
-                            : "text-slate-400 hover:text-white bg-slate-950 border border-slate-800"
-                        }`}
-                        id="base_subtab_blocks"
-                      >
-                        <Blocks className="w-3.5 h-3.5 text-blue-400" />
-                        L2 Blocks ({baseBlocks.length})
-                      </button>
-                      <button
-                        onClick={() => setBaseSubTab("tokens")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                          baseSubTab === "tokens"
-                            ? "bg-blue-600/20 text-blue-300 border border-blue-500/40"
-                            : "text-slate-400 hover:text-white bg-slate-950 border border-slate-800"
-                        }`}
-                        id="base_subtab_tokens"
-                      >
-                        <Coins className="w-3.5 h-3.5 text-blue-400" />
-                        Ecosystem Tokens ({INITIAL_BASE_TOKENS.length})
-                      </button>
-                      <button
-                        onClick={() => setBaseSubTab("paymaster")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                          baseSubTab === "paymaster"
-                            ? "bg-blue-600/20 text-blue-300 border border-blue-500/40"
-                            : "text-slate-400 hover:text-white bg-slate-950 border border-slate-800"
-                        }`}
-                        id="base_subtab_paymaster"
-                      >
-                        <Zap className="w-3.5 h-3.5 text-amber-400" />
-                        Paymaster & EIP-5792
-                      </button>
-                    </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                    {/* Unified Base Search Input */}
-                    <div className="relative w-full md:w-64" id="base_search_container">
-                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                {/* Create B20 Token Form Card */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-5" id="b20_launch_form_card">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <PlusCircle className="w-4 h-4 text-blue-400" />
+                      Configure & Deploy B20 Token
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCodeSnippetType("solidity_b20");
+                        setCodeModalOpen(true);
+                      }}
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-mono cursor-pointer"
+                    >
+                      <Code className="w-3.5 h-3.5" />
+                      View Smart Contract Code
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleLaunchB20Token} className="grid grid-cols-1 md:grid-cols-2 gap-4" id="b20_launch_form">
+                    <div>
+                      <label htmlFor="b20_name_input" className="block text-xs font-medium text-slate-400 mb-1">Token Name</label>
                       <input
+                        id="b20_name_input"
                         type="text"
-                        placeholder="Tx Hash / Basename / Block..."
-                        value={baseSearchQuery}
-                        onChange={(e) => setBaseSearchQuery(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-1.5 pl-8 pr-3 text-xs text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 font-mono"
-                        id="base_search_input"
+                        placeholder="e.g. Base Cash"
+                        value={launchName}
+                        onChange={(e) => setLaunchName(e.target.value)}
+                        required
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-sans"
                       />
                     </div>
-                  </div>
+
+                    <div>
+                      <label htmlFor="b20_symbol_input" className="block text-xs font-medium text-slate-400 mb-1">Token Symbol</label>
+                      <input
+                        id="b20_symbol_input"
+                        type="text"
+                        placeholder="e.g. BCASH"
+                        value={launchSymbol}
+                        onChange={(e) => setLaunchSymbol(e.target.value.toUpperCase())}
+                        required
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="b20_decimals_select" className="block text-xs font-medium text-slate-400 mb-1">Decimals (Range: 6 to 18)</label>
+                      <select
+                        id="b20_decimals_select"
+                        value={launchDecimals}
+                        onChange={(e) => setLaunchDecimals(parseInt(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
+                      >
+                        <option value={18}>18 (Standard ERC-20 Default)</option>
+                        <option value={8}>8 (Bitcoin Precision)</option>
+                        <option value={6}>6 (USDC/Stablecoin Style)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="b20_cap_input" className="block text-xs font-medium text-slate-400 mb-1">Supply Cap (Max Cap)</label>
+                      <input
+                        id="b20_cap_input"
+                        type="number"
+                        placeholder="10000000"
+                        value={launchCap}
+                        onChange={(e) => setLaunchCap(parseInt(e.target.value) || 0)}
+                        min="1"
+                        required
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Transfer Policy</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: "Open", label: "Open Policy", desc: "Unrestricted transfers" },
+                          { id: "Allowlist", label: "Allowlist Policy", desc: "Approved addresses only" },
+                          { id: "KYC Restricted", label: "KYC Restricted", desc: "Regulated compliance" },
+                        ].map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setLaunchPolicy(p.id as any)}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              launchPolicy === p.id
+                                ? "bg-blue-600/10 border-blue-500 text-white"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{p.label}</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">{p.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Features checklist */}
+                    <div className="md:col-span-2 flex flex-wrap gap-4 pt-2 border-t border-slate-800/60 text-xs text-slate-300">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-blue-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                        <span>transferWithMemo Enabled</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-blue-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                        <span>ERC-2612 Permit Support</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-blue-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Issuer Pause Control</span>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 pt-2">
+                      <button
+                        type="submit"
+                        disabled={isDeployingB20}
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
+                        id="btn_deploy_b20"
+                      >
+                        {isDeployingB20 ? (
+                          <>
+                            <Activity className="w-4 h-4 animate-spin" />
+                            Deploying to Base Network (Step {deployStep}/3)...
+                          </>
+                        ) : (
+                          <>
+                            <Rocket className="w-4 h-4 text-blue-200" />
+                            Deploy B20 Token to Base
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 </div>
 
-                {/* Sub-tab Content: Transactions */}
-                {baseSubTab === "txs" && (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="base_txs_container">
-                    <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-                      <h4 className="text-xs font-semibold text-white flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-blue-400" />
-                        Live Base L2 Transactions Feed
-                      </h4>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        Network: {baseChainId === 8453 ? "Base Mainnet" : "Base Sepolia"}
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse" id="base_txs_table">
-                        <thead>
-                          <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/60">
-                            <th className="py-3 px-4">Tx Hash</th>
-                            <th className="py-3 px-4">Method</th>
-                            <th className="py-3 px-4">From (Basename)</th>
-                            <th className="py-3 px-4">To</th>
-                            <th className="py-3 px-4 text-right">Value</th>
-                            <th className="py-3 px-4 text-right">Gas Fee</th>
-                            <th className="py-3 px-4 text-center">Inspect</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/50 text-xs font-mono text-slate-300">
-                          {baseTxs
-                            .filter((tx) =>
-                              tx.hash.toLowerCase().includes(baseSearchQuery.toLowerCase()) ||
-                              tx.fromBasename?.toLowerCase().includes(baseSearchQuery.toLowerCase()) ||
-                              tx.toBasename?.toLowerCase().includes(baseSearchQuery.toLowerCase()) ||
-                              tx.method.toLowerCase().includes(baseSearchQuery.toLowerCase())
-                            )
-                            .map((tx) => (
-                              <tr key={tx.hash} className="hover:bg-slate-950/30 transition-all" id={`base_tx_row_${tx.hash.slice(0, 10)}`}>
-                                <td className="py-3.5 px-4 font-mono text-blue-400 flex items-center gap-1">
-                                  <span>{tx.hash.slice(0, 10)}...{tx.hash.slice(-6)}</span>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${
-                                    tx.method === "swap"
-                                      ? "bg-purple-500/10 border-purple-500/30 text-purple-400"
-                                      : tx.method === "transfer"
-                                      ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
-                                      : tx.method === "wallet_sendCalls"
-                                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                                      : tx.method === "paymaster_sponsor"
-                                      ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                                      : "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                                  }`}>
-                                    {tx.method}
-                                  </span>
-                                </td>
-                                <td className="py-3.5 px-4 text-slate-200">
-                                  <span className="text-blue-300 font-semibold">{tx.fromBasename || tx.from.slice(0, 8) + "..."}</span>
-                                </td>
-                                <td className="py-3.5 px-4 text-slate-400">
-                                  <span>{tx.toBasename || tx.to.slice(0, 8) + "..."}</span>
-                                </td>
-                                <td className="py-3.5 px-4 text-right font-bold text-white">{tx.value}</td>
-                                <td className="py-3.5 px-4 text-right">
-                                  {tx.sponsored ? (
-                                    <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
-                                      <Zap className="w-2.5 h-2.5 fill-amber-400" /> $0.00
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-400 text-[10px]">{tx.gasFee.split(" ")[0]}</span>
-                                  )}
-                                </td>
-                                <td className="py-3.5 px-4 text-center">
-                                  <button
-                                    onClick={() => setInspectTx(tx)}
-                                    className="p-1.5 bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-300 rounded-lg transition-all cursor-pointer"
-                                    title="Inspect Base Transaction Details"
-                                  >
-                                    <ArrowUpRight className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
+                {/* Deployed B20 Tokens List */}
+                <div className="flex flex-col gap-4" id="deployed_b20_tokens_section">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-blue-400" />
+                      Active Base B20 Tokens ({b20Tokens.length})
+                    </h3>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      Connected Network: <span className="text-blue-400 font-bold">Base Sepolia / Mainnet</span>
+                    </span>
                   </div>
-                )}
 
-                {/* Sub-tab Content: Blocks */}
-                {baseSubTab === "blocks" && (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="base_blocks_container">
-                    <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-                      <h4 className="text-xs font-semibold text-white flex items-center gap-2">
-                        <Blocks className="w-4 h-4 text-blue-400" />
-                        Base L2 Block Stream
-                      </h4>
-                      <span className="text-[10px] text-slate-400 font-mono">Block Time: ~2.0 seconds</span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse" id="base_blocks_table">
-                        <thead>
-                          <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/60">
-                            <th className="py-3 px-4">Block #</th>
-                            <th className="py-3 px-4">Block Hash</th>
-                            <th className="py-3 px-4 text-center">Tx Count</th>
-                            <th className="py-3 px-4">Gas Used / Limit</th>
-                            <th className="py-3 px-4">Sequencer Node</th>
-                            <th className="py-3 px-4 text-right">Age</th>
-                            <th className="py-3 px-4 text-center">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/50 text-xs font-mono text-slate-300">
-                          {baseBlocks.map((blk) => (
-                            <tr key={blk.number} className="hover:bg-slate-950/30 transition-all" id={`base_blk_row_${blk.number}`}>
-                              <td className="py-3.5 px-4 font-bold text-blue-400">#{blk.number}</td>
-                              <td className="py-3.5 px-4 text-slate-400">{blk.hash.slice(0, 12)}...{blk.hash.slice(-6)}</td>
-                              <td className="py-3.5 px-4 text-center font-bold text-white">{blk.txCount} txs</td>
-                              <td className="py-3.5 px-4 text-slate-300">{blk.gasUsed}</td>
-                              <td className="py-3.5 px-4 text-slate-400 text-[11px]">{blk.sequencer}</td>
-                              <td className="py-3.5 px-4 text-right text-slate-500 text-[10px]">{blk.timestamp}</td>
-                              <td className="py-3.5 px-4 text-center">
-                                <button
-                                  onClick={() => setInspectBlock(blk)}
-                                  className="p-1.5 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-lg transition-all cursor-pointer"
-                                  title="View Block Summary"
-                                >
-                                  <ArrowUpRight className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sub-tab Content: Ecosystem Tokens */}
-                {baseSubTab === "tokens" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="base_tokens_grid">
-                    {INITIAL_BASE_TOKENS.map((token) => (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="b20_tokens_grid">
+                    {b20Tokens.map((token) => (
                       <div
-                        key={token.symbol}
-                        className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-blue-500/50 transition-all flex flex-col justify-between shadow-md"
-                        id={`base_token_card_${token.symbol.toLowerCase()}`}
+                        key={token.id}
+                        className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between gap-4 relative overflow-hidden shadow-md hover:border-blue-500/40 transition-all"
+                        id={`b20_card_${token.symbol}`}
                       >
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
                             <div className="flex items-center gap-2">
-                              <div className={`w-8 h-8 rounded-full ${token.logoColor} flex items-center justify-center font-bold text-white text-xs shadow`}>
-                                {token.symbol.slice(0, 2)}
-                              </div>
-                              <div>
-                                <h5 className="font-bold text-white text-sm">{token.name}</h5>
-                                <span className="text-[10px] font-mono text-slate-500">${token.symbol}</span>
-                              </div>
+                              <h4 className="text-base font-bold text-white">{token.name}</h4>
+                              <span className="text-xs font-bold font-mono px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
+                                ${token.symbol}
+                              </span>
                             </div>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-slate-400">
-                              {token.category}
-                            </span>
+                            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              {token.decimals} Decimals • Cap: {token.totalSupplyCap.toLocaleString()} {token.symbol}
+                            </p>
                           </div>
-
-                          <div className="space-y-1.5 font-mono text-xs my-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-                            <div className="flex justify-between">
-                              <span className="text-slate-500 text-[10px] uppercase">Price (USD):</span>
-                              <span className="font-bold text-emerald-400">{token.priceUsd}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-500 text-[10px] uppercase">24h Volume:</span>
-                              <span className="text-slate-300">{token.volume24h}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-500 text-[10px] uppercase">Holders:</span>
-                              <span className="text-slate-300">{token.holders.toLocaleString()}</span>
-                            </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                              token.paused
+                                ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                                : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            }`}>
+                              {token.paused ? "PAUSED" : "ACTIVE"}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-500">
+                              {token.policy} Policy
+                            </span>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
-                          <span className="text-[10px] font-mono text-slate-500 truncate max-w-[140px]" title={token.address}>
-                            {token.address.slice(0, 8)}...{token.address.slice(-4)}
-                          </span>
+                        {/* Contract Details */}
+                        <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-[11px] font-mono text-slate-400">
+                          <span className="truncate pr-2">Contract: {token.contractAddress}</span>
                           <button
                             onClick={() => {
-                              navigator.clipboard.writeText(token.address);
-                              setCopiedAddress(token.symbol);
-                              setTimeout(() => setCopiedAddress(null), 2000);
+                              navigator.clipboard.writeText(token.contractAddress);
+                              alert(`Copied contract address: ${token.contractAddress}`);
                             }}
-                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer"
+                            className="p-1 hover:text-white transition-all text-slate-500 shrink-0 cursor-pointer"
+                            title="Copy Contract Address"
                           >
-                            {copiedAddress === token.symbol ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                            {copiedAddress === token.symbol ? "Copied" : "Copy"}
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs font-mono text-slate-300 border-t border-slate-800/80 pt-3">
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">Circulating Supply</span>
+                            <span className="font-bold text-white">{token.currentSupply.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">Memo Transactions</span>
+                            <span className="font-bold text-emerald-400">{token.memosCount} reconciled</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => {
+                              setPayTokenAddress(token.contractAddress);
+                              setActiveTab("b20_payments");
+                            }}
+                            className="flex-1 py-2 px-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            Accept Payments
+                          </button>
+                          <button
+                            onClick={() => handleTogglePauseB20Token(token.contractAddress)}
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                              token.paused
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                                : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
+                            }`}
+                            title={token.paused ? "Unpause Token Transfers" : "Pause Token Transfers"}
+                          >
+                            {token.paused ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                            {token.paused ? "Unpause" : "Pause"}
                           </button>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
+                </div>
+              </div>
+            )}
 
-                {/* Sub-tab Content: Paymaster & EIP-5792 Batch Calls */}
-                {baseSubTab === "paymaster" && (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-6" id="base_paymaster_container">
-                    <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
-                          <h4 className="text-base font-bold text-white">Base Paymaster & EIP-5792 Batching</h4>
+            {/* 5. ACCEPT B20 PAYMENTS (MEMO CHECKOUT) TAB */}
+            {activeTab === "b20_payments" && (
+              <div className="flex flex-col gap-6" id="b20_payments_tab_content">
+                {/* Hero Header */}
+                <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 border border-emerald-800/50 rounded-2xl p-6 shadow-xl relative overflow-hidden" id="b20_payments_hero">
+                  <div className="flex items-start gap-4 relative z-10">
+                    <div className="p-3 bg-emerald-600/20 border border-emerald-500/30 rounded-xl text-emerald-400 shrink-0">
+                      <Receipt className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        Accept B20 Token Payments
+                        <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30">transferWithMemo</span>
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        Tag every payment with a <code className="font-mono text-emerald-300">bytes32</code> order ID memo using B20&apos;s <code className="font-mono text-emerald-300">transferWithMemo</code> function. Parse the emitted <code className="font-mono text-emerald-300">Memo</code> event to automatically reconcile payments with orders onchain.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Toast Notification */}
+                <AnimatePresence>
+                  {paymentToast && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`p-4 rounded-xl text-xs flex items-center justify-between shadow-lg border ${
+                        paymentToast.type === "success"
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                          : "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                      }`}
+                      id="payment_toast_banner"
+                    >
+                      <div className="flex items-start gap-2">
+                        {paymentToast.type === "success" ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                        ) : (
+                          <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <p className="font-bold">{paymentToast.message}</p>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Base sponsors gas fees for frictionless user onboarding. Combine token approve + swap actions into a single signature using <code className="text-blue-400 font-mono">wallet_sendCalls</code>.
-                        </p>
                       </div>
+                      <button
+                        onClick={() => setPaymentToast(null)}
+                        className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Interactive Payment & Memo Verifier Card */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-5" id="checkout_simulator_card">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <Play className="w-4 h-4 text-emerald-400" />
+                      Order Checkout & Memo Event Verifier
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCodeSnippetType("viem_pay");
+                        setCodeModalOpen(true);
+                      }}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-mono cursor-pointer"
+                    >
+                      <Code className="w-3.5 h-3.5" />
+                      Copy Viem Code Snippet
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleExecuteB20Payment} className="grid grid-cols-1 md:grid-cols-2 gap-4" id="b20_checkout_form">
+                    <div>
+                      <label htmlFor="pay_token_select" className="block text-xs font-medium text-slate-400 mb-1">Select B20 Token</label>
+                      <select
+                        id="pay_token_select"
+                        value={payTokenAddress}
+                        onChange={(e) => setPayTokenAddress(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                      >
+                        {b20Tokens.map((t) => (
+                          <option key={t.contractAddress} value={t.contractAddress}>
+                            {t.name} (${t.symbol}) - {t.contractAddress.slice(0, 12)}... {t.paused ? "[PAUSED]" : ""}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-                        <h5 className="text-xs font-bold text-white flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-emerald-400" /> Gas Sponsorship Paymaster Status
-                        </h5>
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
-                          Base Paymaster provides 100% gas sponsorship for eligible smart contracts. Users execute onchain transactions without requiring initial ETH for gas.
-                        </p>
-                        <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 font-mono text-[11px] space-y-1">
-                          <div className="text-slate-500">Paymaster Address:</div>
-                          <div className="text-blue-300 font-bold truncate">0x0000000000770505b2628e83042079c657930928</div>
-                          <div className="text-emerald-400 text-[10px] pt-1">✓ Active on Base Mainnet (8453)</div>
-                        </div>
-                      </div>
+                    <div>
+                      <label htmlFor="order_id_input" className="block text-xs font-medium text-slate-400 mb-1">Order ID Memo (Attached as bytes32)</label>
+                      <input
+                        id="order_id_input"
+                        type="text"
+                        placeholder="e.g. order-42"
+                        value={payOrderId}
+                        onChange={(e) => setPayOrderId(e.target.value)}
+                        required
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
 
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
-                        <div>
-                          <h5 className="text-xs font-bold text-white flex items-center gap-2 mb-2">
-                            <Layers className="w-4 h-4 text-blue-400" /> Interactive EIP-5792 Batch Simulator
-                          </h5>
-                          <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
-                            Test executing a combined batch request: <code className="text-amber-400">Approve USDC</code> + <code className="text-amber-400">Swap to Base Token</code> in 1 batch call.
-                          </p>
-                        </div>
+                    <div>
+                      <label htmlFor="pay_amount_input" className="block text-xs font-medium text-slate-400 mb-1">Payment Amount</label>
+                      <input
+                        id="pay_amount_input"
+                        type="number"
+                        placeholder="10.0"
+                        value={payAmount}
+                        onChange={(e) => setPayAmount(parseFloat(e.target.value) || 0)}
+                        step="0.01"
+                        min="0.01"
+                        required
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
 
+                    <div>
+                      <label htmlFor="merchant_address_input" className="block text-xs font-medium text-slate-400 mb-1">Merchant Address (Recipient)</label>
+                      <input
+                        id="merchant_address_input"
+                        type="text"
+                        value={payMerchant}
+                        onChange={(e) => setPayMerchant(e.target.value)}
+                        required
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
+                      />
+                    </div>
+
+                    {/* Revert Simulation Mode Tester */}
+                    <div className="md:col-span-2 bg-slate-950 border border-slate-800/80 rounded-xl p-3 flex flex-col gap-2">
+                      <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                        B20 Revert Testing Simulator (<code className="font-mono text-amber-300">simulateContract</code> validation)
+                      </span>
+                      <div className="grid grid-cols-3 gap-2">
                         <button
-                          onClick={() => {
-                            const randomHex = () => Math.random().toString(16).substring(2, 10);
-                            const newTx: BaseTx = {
-                              hash: `0x${randomHex()}${randomHex()}${randomHex()}${randomHex()}${randomHex()}`,
-                              blockNumber: baseBlocks[0]?.number || 20491832,
-                              from: "0x3a429f0a12b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7",
-                              fromBasename: "jesse.base",
-                              to: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-                              toBasename: "aerodrome.base",
-                              value: "100.00 USDC ➔ AERO",
-                              method: "wallet_sendCalls",
-                              status: "success",
-                              gasFee: "$0.0000 (Sponsored by Base Paymaster)",
-                              sponsored: true,
-                              timestamp: "Just now"
-                            };
-                            setBaseTxs([newTx, ...baseTxs]);
-                            setInspectTx(newTx);
-                          }}
-                          className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                          id="btn_simulate_batch_tx"
+                          type="button"
+                          onClick={() => setSimRevertMode("none")}
+                          className={`py-1.5 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                            simRevertMode === "none"
+                              ? "bg-emerald-500/10 border-emerald-500 text-emerald-400"
+                              : "bg-slate-900 border-slate-800 text-slate-400"
+                          }`}
                         >
-                          <Zap className="w-4 h-4 fill-white" />
-                          Simulate Gasless Batch Tx (wallet_sendCalls)
+                          Normal Success
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSimRevertMode("policy")}
+                          className={`py-1.5 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                            simRevertMode === "policy"
+                              ? "bg-amber-500/10 border-amber-500 text-amber-400"
+                              : "bg-slate-900 border-slate-800 text-slate-400"
+                          }`}
+                        >
+                          Simulate PolicyForbids Revert
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSimRevertMode("paused")}
+                          className={`py-1.5 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                            simRevertMode === "paused"
+                              ? "bg-rose-500/10 border-rose-500 text-rose-400"
+                              : "bg-slate-900 border-slate-800 text-slate-400"
+                          }`}
+                        >
+                          Simulate Paused Revert
                         </button>
                       </div>
                     </div>
+
+                    {/* Encoded bytes32 Memo Preview */}
+                    <div className="md:col-span-2 p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono text-slate-400">
+                      <span>Encoded Memo (bytes32): <span className="text-emerald-400">{stringToBytes32(payOrderId || "order-42")}</span></span>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <button
+                        type="submit"
+                        disabled={isProcessingPayment}
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
+                        id="btn_pay_with_memo"
+                      >
+                        {isProcessingPayment ? (
+                          <>
+                            <Activity className="w-4 h-4 animate-spin" />
+                            Transacting on Base & Reading Memo Event...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 text-emerald-200" />
+                            Execute Pay with Memo (<code className="font-mono">transferWithMemo</code>)
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Reconciled Payments Table */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4" id="reconciled_payments_card">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <History className="w-4 h-4 text-emerald-400" />
+                      Reconciled Order Payments ({b20Orders.length})
+                    </h3>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Matched via <code className="text-emerald-400 font-bold">parseEventLogs(Memo)</code>
+                    </span>
                   </div>
-                )}
+
+                  <div className="overflow-x-auto" id="orders_table_container">
+                    <table className="w-full text-left border-collapse" id="orders_table">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/40">
+                          <th className="py-3 px-4">Order ID Memo</th>
+                          <th className="py-3 px-4">Token & Amount</th>
+                          <th className="py-3 px-4">Payer Wallet</th>
+                          <th className="py-3 px-4">Bytes32 Memo</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-right">Timestamp</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
+                        {b20Orders.map((order) => (
+                          <tr key={order.id} className="hover:bg-slate-950/30 transition-all" id={`order_row_${order.id}`}>
+                            <td className="py-3 px-4 font-bold text-white">
+                              <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded">
+                                {order.orderId}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-white">
+                              {order.amount} ${order.tokenSymbol}
+                            </td>
+                            <td className="py-3 px-4 text-slate-400 text-[11px]">
+                              {order.payerAddress.slice(0, 8)}...{order.payerAddress.slice(-4)}
+                            </td>
+                            <td className="py-3 px-4 text-[10px] text-slate-500 truncate max-w-[140px]" title={order.memoBytes32}>
+                              {order.memoBytes32.slice(0, 14)}...
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {order.status === "confirmed" && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full font-bold">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  Confirmed
+                                </span>
+                              )}
+                              {order.status === "reverted_policy" && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full font-bold" title={order.revertReason}>
+                                  <ShieldAlert className="w-3 h-3 text-amber-400" />
+                                  PolicyForbids
+                                </span>
+                              )}
+                              {order.status === "reverted_paused" && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-full font-bold" title={order.revertReason}>
+                                  <Lock className="w-3 h-3 text-rose-400" />
+                                  Token Paused
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right text-[10px] text-slate-500">
+                              {order.timestamp}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1920,226 +2256,98 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Base Transaction Detail Modal Overlay */}
+        {/* Code Modal Overlay for B20 Integrations */}
         <AnimatePresence>
-          {inspectTx && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md" id="base_tx_modal_backdrop">
+          {codeModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md" id="code_modal_backdrop">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="bg-slate-900 border border-blue-500/30 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-                id="base_tx_modal_card"
+                className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+                id="code_modal_card"
               >
-                {/* Modal Header */}
-                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70" id="base_tx_modal_header">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
-                      🔵
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        Base Transaction
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded uppercase font-mono">
-                          {inspectTx.status}
-                        </span>
-                      </h3>
-                      <p className="text-[10px] font-mono text-blue-400 truncate max-w-[280px]">
-                        {inspectTx.hash}
-                      </p>
-                    </div>
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+                  <div className="flex items-center gap-2">
+                    <Code className="w-5 h-5 text-blue-400" />
+                    <h3 className="font-bold text-white text-sm">
+                      {codeSnippetType === "viem_pay" ? "Accept B20 Payments with Memos (Viem)" : "Base B20 Smart Contract (Solidity)"}
+                    </h3>
                   </div>
                   <button
-                    onClick={() => setInspectTx(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-                    id="btn_close_tx_modal"
+                    onClick={() => setCodeModalOpen(false)}
+                    className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                {/* Modal Body */}
-                <div className="p-6 space-y-4 font-mono text-xs text-slate-300" id="base_tx_modal_body">
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2.5">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-800/80">
-                      <span className="text-slate-500 uppercase text-[10px]">Method Call</span>
-                      <span className="text-blue-300 font-bold bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded uppercase text-[10px]">
-                        {inspectTx.method}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">From (Sender)</span>
-                      <span className="text-white font-semibold">
-                        {inspectTx.fromBasename ? (
-                          <span className="text-blue-400 font-bold">{inspectTx.fromBasename}</span>
-                        ) : (
-                          inspectTx.from.slice(0, 10) + "..."
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">To (Target)</span>
-                      <span className="text-white font-semibold">
-                        {inspectTx.toBasename ? (
-                          <span className="text-blue-400 font-bold">{inspectTx.toBasename}</span>
-                        ) : (
-                          inspectTx.to.slice(0, 10) + "..."
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">Value</span>
-                      <span className="text-emerald-400 font-bold">{inspectTx.value}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
-                      <span className="text-slate-500 uppercase text-[10px]">Gas Fee</span>
-                      {inspectTx.sponsored ? (
-                        <span className="text-amber-400 font-bold bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] flex items-center gap-1">
-                          <Zap className="w-3 h-3 fill-amber-400" /> Sponsored ($0.00)
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">{inspectTx.gasFee}</span>
-                      )}
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">L2 Block #</span>
-                      <span className="text-blue-400 font-bold">#{inspectTx.blockNumber}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">Timestamp</span>
-                      <span className="text-slate-400">{inspectTx.timestamp}</span>
-                    </div>
-                  </div>
-
-                  {/* EIP-5792 / Paymaster Notice */}
-                  {inspectTx.sponsored && (
-                    <div className="bg-blue-950/40 border border-blue-500/30 p-3 rounded-xl text-[11px] text-blue-300 flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                      <span>This transaction was fully sponsored via Base Paymaster API with zero user gas friction.</span>
-                    </div>
-                  )}
+                {/* Tab Switcher */}
+                <div className="px-6 pt-4 flex gap-2">
+                  <button
+                    onClick={() => setCodeSnippetType("viem_pay")}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-mono transition-all border cursor-pointer ${
+                      codeSnippetType === "viem_pay"
+                        ? "bg-blue-600 text-white border-blue-500 font-bold"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
+                    }`}
+                  >
+                    pay-with-memo.js (Viem + B20)
+                  </button>
+                  <button
+                    onClick={() => setCodeSnippetType("solidity_b20")}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-mono transition-all border cursor-pointer ${
+                      codeSnippetType === "solidity_b20"
+                        ? "bg-blue-600 text-white border-blue-500 font-bold"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
+                    }`}
+                  >
+                    BaseB20Token.sol (Solidity)
+                  </button>
                 </div>
 
-                {/* Modal Footer */}
-                <div className="px-6 py-4 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between" id="base_tx_modal_footer">
-                  <div className="flex items-center gap-2">
+                {/* Code Content */}
+                <div className="p-6 flex flex-col gap-3">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="font-mono text-[11px] text-slate-500">
+                      {codeSnippetType === "viem_pay" ? "Client-side / Node.js payment reconciliation" : "OpenZeppelin derived ERC-20 superset contract"}
+                    </span>
                     <button
                       onClick={() => {
-                        setQrModalInscription({
-                          number: inspectTx.blockNumber,
-                          id: inspectTx.hash,
-                          ticker: "BASE",
-                          amount: 1,
-                          op: "transfer",
-                          txHash: inspectTx.hash,
-                          timestamp: inspectTx.timestamp,
-                        });
+                        const codeText = codeSnippetType === "viem_pay" ? VIEM_PAYMENT_CODE_SNIPPET : SOLIDITY_B20_CODE_SNIPPET;
+                        navigator.clipboard.writeText(codeText);
+                        setCopiedSnippet(true);
+                        setTimeout(() => setCopiedSnippet(false), 2000);
                       }}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-all cursor-pointer"
-                      id="btn_tx_generate_qr"
+                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-mono flex items-center gap-1.5 border border-slate-700 transition-all cursor-pointer"
                     >
-                      <QrCode className="w-3.5 h-3.5" /> Generate QR
+                      {copiedSnippet ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-slate-300" />
+                          <span>Copy Code</span>
+                        </>
+                      )}
                     </button>
-                    <a
-                      href={`https://basescan.org/tx/${inspectTx.hash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
-                      id="btn_basescan_link"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" /> Basescan ↗
-                    </a>
                   </div>
 
-                  <button
-                    onClick={() => setInspectTx(null)}
-                    className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    id="btn_close_tx_modal_done"
-                  >
-                    Done
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* Base Block Detail Modal Overlay */}
-        <AnimatePresence>
-          {inspectBlock && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md" id="base_block_modal_backdrop">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="bg-slate-900 border border-blue-500/30 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-                id="base_block_modal_card"
-              >
-                {/* Modal Header */}
-                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70" id="base_block_modal_header">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
-                      <Blocks className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Base L2 Block #{inspectBlock.number}</h3>
-                      <p className="text-[10px] font-mono text-slate-400">{inspectBlock.timestamp}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setInspectBlock(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-                    id="btn_close_block_modal"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <pre className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-emerald-300/90 overflow-x-auto max-h-96 whitespace-pre leading-relaxed select-all">
+                    {codeSnippetType === "viem_pay" ? VIEM_PAYMENT_CODE_SNIPPET : SOLIDITY_B20_CODE_SNIPPET}
+                  </pre>
                 </div>
 
-                {/* Modal Body */}
-                <div className="p-6 space-y-3 font-mono text-xs text-slate-300" id="base_block_modal_body">
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">Block Hash</span>
-                      <span className="text-blue-400 font-bold truncate max-w-[200px]">{inspectBlock.hash}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">Transaction Count</span>
-                      <span className="text-white font-bold">{inspectBlock.txCount} txs</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">Gas Used</span>
-                      <span className="text-slate-300">{inspectBlock.gasUsed}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 uppercase text-[10px]">Sequencer</span>
-                      <span className="text-slate-300">{inspectBlock.sequencer}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Modal Footer */}
-                <div className="px-6 py-4 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between" id="base_block_modal_footer">
-                  <a
-                    href={`https://basescan.org/block/${inspectBlock.number}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
-                    id="btn_block_basescan"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> View on Basescan ↗
-                  </a>
+                {/* Footer */}
+                <div className="px-6 py-4 bg-slate-950/60 border-t border-slate-800 flex justify-end">
                   <button
-                    onClick={() => setInspectBlock(null)}
-                    className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    id="btn_close_block_modal_done"
+                    onClick={() => setCodeModalOpen(false)}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs font-mono transition-all cursor-pointer"
                   >
-                    Done
+                    Close
                   </button>
                 </div>
               </motion.div>

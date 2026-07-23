@@ -1,6 +1,6 @@
 {
   "name": "BRC-20 Explorer & Ledger",
-  "description": "An interactive dashboard to explore BRC-20 tokens, inscription logs, account ledgers, and live Base L2 blockchain metrics, blocks, transactions, and Basenames.",
+  "description": "An interactive dashboard to explore BRC-20 tokens, launch B20 tokens on Base, accept B20 payments with onchain memos, and manage account ledgers.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
