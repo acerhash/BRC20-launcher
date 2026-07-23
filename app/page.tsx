@@ -39,7 +39,8 @@ import {
   Users,
   Upload,
   Share2,
-  Zap
+  Zap,
+  Sliders
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Sparkline from "@/components/Sparkline";
@@ -738,6 +739,7 @@ export default function Home() {
   const [qrDataType, setQrDataType] = useState<"protocol" | "txhash" | "full">("protocol");
   const [qrFgColor, setQrFgColor] = useState("#000000");
   const [qrBgColor, setQrBgColor] = useState("#ffffff");
+  const [qrErrorLevel, setQrErrorLevel] = useState<"L" | "M" | "Q" | "H">("H");
   const [copiedQrData, setCopiedQrData] = useState(false);
 
   // Helper bytes32 converters
@@ -2716,15 +2718,34 @@ export default function Home() {
                         id="inscription-qr-code-svg"
                         value={getQrPayload(qrModalInscription, qrDataType)}
                         size={190}
-                        level="H"
+                        level={qrErrorLevel}
                         fgColor={qrFgColor}
                         bgColor={qrBgColor}
                         includeMargin={false}
                       />
                     </div>
 
-                    {/* Color Control Panel */}
+                    {/* Color & Density Control Panel */}
                     <div className="flex flex-col gap-2 w-full max-w-sm" id="qr_color_controls_panel">
+                      {/* Error Correction Level Dropdown Bar */}
+                      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_error_correction_bar">
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                          <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Error Correction:</span>
+                        </div>
+                        <select
+                          value={qrErrorLevel}
+                          onChange={(e) => setQrErrorLevel(e.target.value as "L" | "M" | "Q" | "H")}
+                          className="bg-slate-950 border border-slate-700 hover:border-amber-500/50 text-amber-300 rounded-lg text-xs font-mono py-1 px-2 focus:outline-none focus:border-amber-500 cursor-pointer"
+                          id="qr_error_correction_select"
+                        >
+                          <option value="L">L - Low (7% recover, max density)</option>
+                          <option value="M">M - Medium (15% recover, balanced)</option>
+                          <option value="Q">Q - Quartile (25% recover, high)</option>
+                          <option value="H">H - High (30% recover, max reliability)</option>
+                        </select>
+                      </div>
+
                       {/* Foreground Color Picker Bar */}
                       <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_fg_color_picker_bar">
                         <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
