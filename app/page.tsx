@@ -1133,6 +1133,11 @@ export default function Home() {
     return matchesSearch;
   });
 
+  // Search and Filter Ledger Balances
+  const filteredLedger = ledger.filter((b) =>
+    b.ticker.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col" id="app_root_container">
       {/* Top Navigation / Header */}
@@ -1381,7 +1386,7 @@ export default function Home() {
 
             {/* Render conditional actions inside tab controls (like search or exports) */}
             <div className="flex items-center gap-2" id="conditional_controls">
-              {activeTab === "tokens" && (
+              {(activeTab === "tokens" || activeTab === "ledger") && (
                 <div className="relative w-full sm:w-48" id="search_input_container">
                   <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
                   <input
@@ -1390,6 +1395,7 @@ export default function Home() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-amber-500 font-mono"
+                    id="header_search_input"
                   />
                 </div>
               )}
@@ -1631,20 +1637,33 @@ export default function Home() {
             {/* 3. LEDGER BALANCES TAB */}
             {activeTab === "ledger" && (
               <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="ledger_tab_content">
-                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between" id="ledger_header">
+                <div className="px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3" id="ledger_header">
                   <div className="flex items-center gap-2">
                     <Database className="w-5 h-5 text-amber-500" />
                     <h3 className="font-semibold text-white">Your Account Balances</h3>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-800 rounded">
-                    Total: {ledger.length} assets
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-full sm:w-52" id="ledger_search_container">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                      <input
+                        type="text"
+                        placeholder="Filter by ticker..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-amber-500 font-mono"
+                        id="ledger_search_input"
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-800 rounded whitespace-nowrap">
+                      Total: {filteredLedger.length} / {ledger.length} assets
+                    </span>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto" id="ledger_table_container">
-                  {ledger.length === 0 ? (
+                  {filteredLedger.length === 0 ? (
                     <div className="py-12 text-center text-slate-500 text-xs" id="no_ledger_found">
-                      No active balances in your account. Mint some tokens!
+                      {searchQuery ? `No active token balances matching "${searchQuery}".` : "No active balances in your account. Mint some tokens!"}
                     </div>
                   ) : (
                     <table className="w-full text-left border-collapse" id="ledger_table">
@@ -1658,7 +1677,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/55 text-xs text-slate-300 font-mono">
-                        {ledger.map((b) => (
+                        {filteredLedger.map((b) => (
                           <tr key={b.ticker} className="hover:bg-slate-950/20 transition-all" id={`ledger_row_${b.ticker}`}>
                             <td className="py-4 px-6 uppercase font-bold text-white text-sm">${b.ticker}</td>
                             <td className="py-4 px-6 text-right font-semibold text-emerald-400">{b.available.toLocaleString()}</td>
