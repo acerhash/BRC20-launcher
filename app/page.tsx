@@ -2126,7 +2126,7 @@ export default function Home() {
 
             {/* 7. BASE NOTIFICATIONS TAB */}
             {activeTab === "notifications" && (
-              <div className="flex flex-col gap-6" id="base_notifications_tab_content_1">
+              <div className="flex flex-col gap-6" id="base_notifications_tab_content">
                 {/* Notification Toast Alert */}
                 {notifToast && (
                   <div
@@ -2135,13 +2135,13 @@ export default function Home() {
                         ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
                         : "bg-rose-500/10 border-rose-500/30 text-rose-300"
                     }`}
-                    id="notif_toast_alert_1"
+                    id="notif_toast_alert"
                   >
                     <span>{notifToast.message}</span>
                     <button
                       onClick={() => setNotifToast(null)}
                       className="text-slate-400 hover:text-white"
-                      id="close_notif_toast_btn_1"
+                      id="close_notif_toast_btn"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -2149,7 +2149,7 @@ export default function Home() {
                 )}
 
                 {/* Top Console Header Card */}
-                <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden" id="notif_console_header_1">
+                <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden" id="notif_console_header">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
                     <div className="flex items-start gap-4">
                       <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400 shadow-inner">
