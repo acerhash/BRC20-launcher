@@ -18,6 +18,9 @@ import {
   Sparkles,
   Info,
   QrCode,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   X,
   Copy,
   Check,
@@ -546,6 +549,70 @@ export default function Home() {
   // Base B20 Standard States
   const [b20Tokens, setB20Tokens] = useState<B20Token[]>(INITIAL_B20_TOKENS);
   const [b20Orders, setB20Orders] = useState<B20OrderPayment[]>(INITIAL_B20_ORDERS);
+
+  // Inscriptions Sorting State
+  const [inscSortField, setInscSortField] = useState<"number" | "ticker" | "op" | "amount" | "timestamp">("number");
+  const [inscSortOrder, setInscSortOrder] = useState<"asc" | "desc">("desc");
+
+  const toggleInscSort = (field: "number" | "ticker" | "op" | "amount" | "timestamp") => {
+    if (inscSortField === field) {
+      setInscSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setInscSortField(field);
+      setInscSortOrder(field === "ticker" || field === "op" ? "asc" : "desc");
+    }
+  };
+
+  const sortedInscriptions = React.useMemo(() => {
+    return [...inscriptions].sort((a, b) => {
+      let aVal: string | number = a[inscSortField];
+      let bVal: string | number = b[inscSortField];
+
+      if (inscSortField === "number" || inscSortField === "amount") {
+        aVal = Number(aVal) || 0;
+        bVal = Number(bVal) || 0;
+      } else {
+        aVal = String(aVal).toLowerCase();
+        bVal = String(bVal).toLowerCase();
+      }
+
+      if (aVal < bVal) return inscSortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return inscSortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [inscriptions, inscSortField, inscSortOrder]);
+
+  // Reconciled Orders Sorting State
+  const [orderSortField, setOrderSortField] = useState<"orderId" | "tokenSymbol" | "amount" | "payerAddress" | "status" | "timestamp">("timestamp");
+  const [orderSortOrder, setOrderSortOrder] = useState<"asc" | "desc">("desc");
+
+  const toggleOrderSort = (field: "orderId" | "tokenSymbol" | "amount" | "payerAddress" | "status" | "timestamp") => {
+    if (orderSortField === field) {
+      setOrderSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setOrderSortField(field);
+      setOrderSortOrder(field === "amount" || field === "timestamp" ? "desc" : "asc");
+    }
+  };
+
+  const sortedB20Orders = React.useMemo(() => {
+    return [...b20Orders].sort((a, b) => {
+      let aVal: string | number = a[orderSortField];
+      let bVal: string | number = b[orderSortField];
+
+      if (orderSortField === "amount") {
+        aVal = Number(aVal) || 0;
+        bVal = Number(bVal) || 0;
+      } else {
+        aVal = String(aVal).toLowerCase();
+        bVal = String(bVal).toLowerCase();
+      }
+
+      if (aVal < bVal) return orderSortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return orderSortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [b20Orders, orderSortField, orderSortOrder]);
 
   // Airdrop Suite States
   const [airdropCampaigns, setAirdropCampaigns] = useState<AirdropCampaign[]>(INITIAL_AIRDROP_CAMPAIGNS);
@@ -1178,6 +1245,82 @@ export default function Home() {
       console.error("Auto-save QR PNG error:", err);
     }
   }, [qrModalInscription]);
+
+  // Helper to share QR code image or payload link via Web Share API
+  const handleShareQr = async () => {
+    if (!qrModalInscription) return;
+    const payload = getQrPayload(qrModalInscription, qrDataType);
+    const title = `BRC-20 Inscription #${qrModalInscription.number} (${qrModalInscription.ticker.toUpperCase()})`;
+    const text = `BRC-20 Inscription #${qrModalInscription.number} (${qrModalInscription.ticker.toUpperCase()}) - ${
+      qrDataType === "protocol" ? "BRC-20 Payload" : qrDataType === "txhash" ? "Bitcoin URI" : "Full Metadata"
+    }:\n${payload}`;
+    const url = typeof window !== "undefined" ? window.location.href : undefined;
+
+    const svg = document.getElementById("inscription-qr-code-svg") as SVGSVGElement | null;
+    let fileToShare: File | null = null;
+
+    if (svg) {
+      try {
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+        const URLObj = window.URL || window.webkitURL || window;
+        const svgUrl = URLObj.createObjectURL(svgBlob);
+
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = svgUrl;
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 600;
+        canvas.height = 600;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = qrBgColor;
+          ctx.fillRect(0, 0, 600, 600);
+          ctx.drawImage(img, 0, 0, 600, 600);
+          URLObj.revokeObjectURL(svgUrl);
+
+          const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+          if (pngBlob) {
+            fileToShare = new File([pngBlob], `brc20_inscription_${qrModalInscription.number}_qr.png`, {
+              type: "image/png",
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Could not attach QR PNG image for share, sending text payload:", err);
+      }
+    }
+
+    const shareData: ShareData = {
+      title,
+      text,
+      url,
+    };
+
+    if (fileToShare && typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [fileToShare] })) {
+      shareData.files = [fileToShare];
+    }
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          navigator.clipboard.writeText(payload);
+          setCopiedQrData(true);
+          setTimeout(() => setCopiedQrData(false), 2000);
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(payload);
+      setCopiedQrData(true);
+      setTimeout(() => setCopiedQrData(false), 2000);
+    }
+  };
 
   // Auto-save effect: Trigger PNG download automatically whenever a new QR code is rendered if autoSaveQr is checked
   useEffect(() => {
@@ -1830,17 +1973,62 @@ export default function Home() {
                     <table className="w-full text-left border-collapse" id="inscriptions_table">
                       <thead>
                         <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/40">
-                          <th className="py-3 px-6">Number / ID</th>
-                          <th className="py-3 px-6">Ticker</th>
-                          <th className="py-3 px-6">Op / Payload</th>
-                          <th className="py-3 px-6">Amount</th>
-                          <th className="py-3 px-6">Timestamp</th>
+                          <th className="py-3 px-6 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleInscSort("number")} title="Click to sort by Inscription Number">
+                            <div className="flex items-center gap-1.5">
+                              <span>Number / ID</span>
+                              {inscSortField === "number" ? (
+                                inscSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-amber-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-amber-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-3 px-6 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleInscSort("ticker")} title="Click to sort by Ticker">
+                            <div className="flex items-center gap-1.5">
+                              <span>Ticker</span>
+                              {inscSortField === "ticker" ? (
+                                inscSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-amber-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-amber-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-3 px-6 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleInscSort("op")} title="Click to sort by Operation">
+                            <div className="flex items-center gap-1.5">
+                              <span>Op / Payload</span>
+                              {inscSortField === "op" ? (
+                                inscSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-amber-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-amber-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-3 px-6 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleInscSort("amount")} title="Click to sort by Amount">
+                            <div className="flex items-center gap-1.5">
+                              <span>Amount</span>
+                              {inscSortField === "amount" ? (
+                                inscSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-amber-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-amber-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-3 px-6 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleInscSort("timestamp")} title="Click to sort by Timestamp">
+                            <div className="flex items-center gap-1.5">
+                              <span>Timestamp</span>
+                              {inscSortField === "timestamp" ? (
+                                inscSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-amber-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-amber-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
                           <th className="py-3 px-6">Tx Hash</th>
                           <th className="py-3 px-6 text-right">QR Code</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/55 text-xs text-slate-300">
-                        {inscriptions.map((i) => (
+                        {sortedInscriptions.map((i) => (
                           <tr key={i.id} className="hover:bg-slate-950/20 transition-all" id={`insc_row_${i.number}`}>
                             <td className="py-3 px-6 font-mono">
                               <div className="text-amber-500 font-bold">#{i.number}</div>
@@ -2465,16 +2653,61 @@ export default function Home() {
                     <table className="w-full text-left border-collapse" id="orders_table">
                       <thead>
                         <tr className="border-b border-slate-800 text-[10px] text-slate-500 uppercase font-mono bg-slate-950/40">
-                          <th className="py-3 px-4">Order ID Memo</th>
-                          <th className="py-3 px-4">Token & Amount</th>
-                          <th className="py-3 px-4">Payer Wallet</th>
+                          <th className="py-3 px-4 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleOrderSort("orderId")} title="Click to sort by Order ID">
+                            <div className="flex items-center gap-1.5">
+                              <span>Order ID Memo</span>
+                              {orderSortField === "orderId" ? (
+                                orderSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-emerald-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-3 px-4 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleOrderSort("amount")} title="Click to sort by Amount">
+                            <div className="flex items-center gap-1.5">
+                              <span>Token & Amount</span>
+                              {orderSortField === "amount" ? (
+                                orderSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-emerald-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-3 px-4 cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleOrderSort("payerAddress")} title="Click to sort by Payer Wallet">
+                            <div className="flex items-center gap-1.5">
+                              <span>Payer Wallet</span>
+                              {orderSortField === "payerAddress" ? (
+                                orderSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-emerald-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
                           <th className="py-3 px-4">Bytes32 Memo</th>
-                          <th className="py-3 px-4 text-center">Status</th>
-                          <th className="py-3 px-4 text-right">Timestamp</th>
+                          <th className="py-3 px-4 cursor-pointer select-none hover:text-white transition-colors text-center" onClick={() => toggleOrderSort("status")} title="Click to sort by Status">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span>Status</span>
+                              {orderSortField === "status" ? (
+                                orderSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-emerald-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-3 px-4 cursor-pointer select-none hover:text-white transition-colors text-right" onClick={() => toggleOrderSort("timestamp")} title="Click to sort by Timestamp">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span>Timestamp</span>
+                              {orderSortField === "timestamp" ? (
+                                orderSortOrder === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-emerald-400 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-400 font-bold" />
+                              ) : (
+                                <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
-                        {b20Orders.map((order) => (
+                        {sortedB20Orders.map((order) => (
                           <tr key={order.id} className="hover:bg-slate-950/30 transition-all" id={`order_row_${order.id}`}>
                             <td className="py-3 px-4 font-bold text-white">
                               <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded">
@@ -3551,6 +3784,15 @@ export default function Home() {
                     >
                       <Download className="w-4 h-4 text-slate-950" />
                       Save as PNG
+                    </button>
+                    <button
+                      onClick={handleShareQr}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold font-mono transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                      id="share_qr_btn"
+                      title="Share QR code image or payload link via Web Share API"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-white" />
+                      <span>Share</span>
                     </button>
                     <button
                       onClick={() => {
