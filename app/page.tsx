@@ -1058,6 +1058,58 @@ export default function Home() {
     }, 1500);
   };
 
+  // Export Reconciled B20 Orders to CSV
+  const handleExportOrdersCSV = () => {
+    if (!b20Orders || b20Orders.length === 0) return;
+
+    const headers = [
+      "Order ID",
+      "Token Symbol",
+      "Token Address",
+      "Amount",
+      "Payer Address",
+      "Merchant Address",
+      "Bytes32 Memo",
+      "Status",
+      "Revert Reason",
+      "Tx Hash",
+      "Block Number",
+      "Timestamp"
+    ];
+
+    const escapeCSV = (val: string | number | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      const clean = String(val).replace(/"/g, '""');
+      return `"${clean}"`;
+    };
+
+    const rows = b20Orders.map((order) => [
+      escapeCSV(order.orderId),
+      escapeCSV(order.tokenSymbol),
+      escapeCSV(order.tokenAddress),
+      escapeCSV(order.amount),
+      escapeCSV(order.payerAddress),
+      escapeCSV(order.merchantAddress),
+      escapeCSV(order.memoBytes32),
+      escapeCSV(order.status),
+      escapeCSV(order.revertReason || ""),
+      escapeCSV(order.txHash),
+      escapeCSV(order.blockNumber),
+      escapeCSV(order.timestamp)
+    ].join(","));
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `b20_reconciled_orders_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Helper to format payload for QR Code
   const getQrPayload = (insc: Inscription, type: "protocol" | "txhash" | "full") => {
     if (type === "protocol") {
@@ -2383,14 +2435,30 @@ export default function Home() {
 
                 {/* Reconciled Payments Table */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4" id="reconciled_payments_card">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <History className="w-4 h-4 text-emerald-400" />
-                      Reconciled Order Payments ({b20Orders.length})
-                    </h3>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      Matched via <code className="text-emerald-400 font-bold">parseEventLogs(Memo)</code>
-                    </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <History className="w-4 h-4 text-emerald-400" />
+                        Reconciled Order Payments ({b20Orders.length})
+                      </h3>
+                      <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
+                        Matched via <code className="text-emerald-400 font-bold">parseEventLogs(Memo)</code>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleExportOrdersCSV}
+                        disabled={b20Orders.length === 0}
+                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-40 disabled:hover:bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-mono font-bold cursor-pointer transition-all flex items-center gap-1.5 shadow-sm"
+                        id="export_b20_orders_csv_btn"
+                        title="Download reconciled payment history as CSV"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Export as CSV</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto" id="orders_table_container">
