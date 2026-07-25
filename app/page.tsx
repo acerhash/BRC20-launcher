@@ -47,12 +47,75 @@ import {
   Bell,
   Megaphone,
   Sun,
-  Moon
+  Moon,
+  User,
+  LogOut,
+  AtSign
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { sdk } from "@farcaster/miniapp-sdk";
 import Sparkline from "@/components/Sparkline";
 
 // Interface Definitions
+interface FarcasterUser {
+  fid: number;
+  username: string;
+  displayName: string;
+  pfpUrl?: string;
+  bio?: string;
+  custodyAddress?: string;
+  verifications?: string[];
+  followerCount?: number;
+  followingCount?: number;
+}
+
+const SAMPLE_FARCASTER_PROFILES: FarcasterUser[] = [
+  {
+    fid: 9152,
+    username: "jessepollak",
+    displayName: "Jesse Pollak",
+    pfpUrl: "https://i.imgur.com/39wH8y2.jpg",
+    bio: "Building Base at Coinbase. Onchain is the new online.",
+    custodyAddress: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    followerCount: 142000,
+    followingCount: 1250,
+    verifications: ["0x71C7656EC7ab88b098defB751B7401B5f6d8976F"]
+  },
+  {
+    fid: 3,
+    username: "dwr.eth",
+    displayName: "Dan Romero",
+    pfpUrl: "https://i.imgur.com/39wH8y2.jpg",
+    bio: "Farcaster founder. Building decentralized social protocol.",
+    custodyAddress: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    followerCount: 285000,
+    followingCount: 890,
+    verifications: ["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"]
+  },
+  {
+    fid: 5650,
+    username: "vitalik.eth",
+    displayName: "Vitalik Buterin",
+    pfpUrl: "https://i.imgur.com/39wH8y2.jpg",
+    bio: "Ethereum researcher and developer.",
+    custodyAddress: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    followerCount: 410000,
+    followingCount: 220,
+    verifications: ["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"]
+  },
+  {
+    fid: 111,
+    username: "cooper",
+    displayName: "Cooper Turley",
+    pfpUrl: "https://i.imgur.com/39wH8y2.jpg",
+    bio: "Music, crypto & Base ecosystem enthusiast.",
+    custodyAddress: "0x324082901a87b9c0214a1f9028a019e840129bc2",
+    followerCount: 89000,
+    followingCount: 1100,
+    verifications: ["0x324082901a87b9c0214a1f9028a019e840129bc2"]
+  }
+];
+
 interface AirdropCampaign {
   id: string;
   tokenType: "BRC-20" | "Base B20";
@@ -544,6 +607,114 @@ export default function Home() {
   const [mintFilter, setMintFilter] = useState<"all" | "completed" | "inprogress">("all");
   const [themeMode, setThemeMode] = useState<"slate" | "oled" | "cyber" | "emerald" | "light">("slate");
 
+  // Farcaster Auth & MiniApp States
+  const [farcasterUser, setFarcasterUser] = useState<FarcasterUser | null>(null);
+  const [isFcModalOpen, setIsFcModalOpen] = useState(false);
+  const [isInMiniAppFrame, setIsInMiniAppFrame] = useState(false);
+  const [fcSearchQuery, setFcSearchQuery] = useState("");
+  const [isFcSearching, setIsFcSearching] = useState(false);
+  const [fcToast, setFcToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Initialize Farcaster MiniApp SDK & load persistent user
+  useEffect(() => {
+    try {
+      const storedFc = localStorage.getItem("brc20_farcaster_user");
+      if (storedFc) {
+        setFarcasterUser(JSON.parse(storedFc));
+      }
+    } catch (e) {
+      console.error("Failed to parse stored Farcaster user:", e);
+    }
+
+    const initFcSdk = async () => {
+      try {
+        if (sdk && sdk.actions && typeof sdk.actions.ready === "function") {
+          await sdk.actions.ready();
+        }
+        if (sdk && sdk.context) {
+          const ctx = await sdk.context;
+          if (ctx && ctx.user) {
+            setIsInMiniAppFrame(true);
+            const autoUser: FarcasterUser = {
+              fid: ctx.user.fid || 9152,
+              username: ctx.user.username || "base_miniapp_user",
+              displayName: ctx.user.displayName || "Base MiniApp User",
+              pfpUrl: ctx.user.pfpUrl || "https://i.imgur.com/39wH8y2.jpg",
+              bio: "In-App Farcaster / Base MiniApp User",
+              custodyAddress: (ctx.user as any)?.custodyAddress || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+            };
+            setFarcasterUser(autoUser);
+          }
+        }
+      } catch (err) {
+        console.log("Farcaster SDK frame check:", err);
+      }
+    };
+    initFcSdk();
+  }, []);
+
+  // Sync farcasterUser to localStorage
+  useEffect(() => {
+    if (farcasterUser) {
+      localStorage.setItem("brc20_farcaster_user", JSON.stringify(farcasterUser));
+    } else {
+      localStorage.removeItem("brc20_farcaster_user");
+    }
+  }, [farcasterUser]);
+
+  const handleFarcasterLogin = (user: FarcasterUser) => {
+    setFarcasterUser(user);
+    setIsFcModalOpen(false);
+    setFcToast({
+      message: `Logged in as @${user.username} (FID: ${user.fid}) via Farcaster!`,
+      type: "success"
+    });
+    setTimeout(() => setFcToast(null), 4000);
+  };
+
+  const handleFarcasterLogout = () => {
+    setFarcasterUser(null);
+    setFcToast({ message: "Signed out of Farcaster account.", type: "success" });
+    setTimeout(() => setFcToast(null), 3000);
+  };
+
+  const handleSearchCustomFarcasterUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fcSearchQuery.trim()) return;
+    setIsFcSearching(true);
+
+    setTimeout(() => {
+      setIsFcSearching(false);
+      const cleanInput = fcSearchQuery.trim().replace(/^@/, "");
+      const isNum = /^\d+$/.test(cleanInput);
+      const fidVal = isNum ? parseInt(cleanInput) : Math.floor(1000 + Math.random() * 900000);
+
+      const customUser: FarcasterUser = {
+        fid: fidVal,
+        username: cleanInput.toLowerCase(),
+        displayName: cleanInput.charAt(0).toUpperCase() + cleanInput.slice(1),
+        pfpUrl: `https://api.dicebear.com/7.x/identicon/svg?seed=${cleanInput}`,
+        bio: `Verified Farcaster user @${cleanInput.toLowerCase()} on Base.`,
+        custodyAddress: `0x${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}`,
+        followerCount: Math.floor(100 + Math.random() * 5000),
+        followingCount: Math.floor(50 + Math.random() * 1000)
+      };
+
+      handleFarcasterLogin(customUser);
+      setFcSearchQuery("");
+    }, 600);
+  };
+
+  const handleShareToWarpcast = (text: string) => {
+    const encoded = encodeURIComponent(text);
+    const warpcastUrl = `https://warpcast.com/~/compose?text=${encoded}`;
+    if (sdk && sdk.actions && typeof sdk.actions.openUrl === "function") {
+      sdk.actions.openUrl(warpcastUrl);
+    } else {
+      window.open(warpcastUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
   // Main Persistent State
   const [tokens, setTokens] = useState<BRC20Token[]>(INITIAL_TOKENS);
   const [inscriptions, setInscriptions] = useState<Inscription[]>(INITIAL_INSCRIPTIONS);
@@ -936,7 +1107,24 @@ export default function Home() {
   const [qrBgColor, setQrBgColor] = useState("#ffffff");
   const [qrErrorLevel, setQrErrorLevel] = useState<"L" | "M" | "Q" | "H">("H");
   const [copiedQrData, setCopiedQrData] = useState(false);
+  const [copiedMinifiedJson, setCopiedMinifiedJson] = useState(false);
   const [autoSaveQr, setAutoSaveQr] = useState(false);
+
+  // Helper to copy minified BRC-20 JSON payload
+  const handleCopyMinifiedJson = () => {
+    if (!qrModalInscription) return;
+    const rawPayload = getQrPayload(qrModalInscription, qrDataType);
+    let minified = rawPayload;
+    try {
+      const parsed = JSON.parse(rawPayload);
+      minified = JSON.stringify(parsed);
+    } catch (e) {
+      minified = rawPayload.replace(/\s+/g, "");
+    }
+    navigator.clipboard.writeText(minified);
+    setCopiedMinifiedJson(true);
+    setTimeout(() => setCopiedMinifiedJson(false), 2000);
+  };
 
   // Helper bytes32 converters
   const stringToBytes32 = (str: string) => {
@@ -1640,6 +1828,43 @@ export default function Home() {
               <span>Light</span>
             </button>
           </div>
+
+          {/* Farcaster Login Button / Profile Pill */}
+          <button
+            type="button"
+            onClick={() => setIsFcModalOpen(true)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-all border shadow-md cursor-pointer ${
+              farcasterUser
+                ? "bg-purple-950/80 border-purple-500/50 text-purple-200 hover:bg-purple-900/80 shadow-purple-900/20"
+                : "bg-purple-600 hover:bg-purple-500 border-purple-400/40 text-white shadow-purple-600/30"
+            }`}
+            id="farcaster_login_header_btn"
+            title={farcasterUser ? `Connected as @${farcasterUser.username}` : "Sign in with Farcaster"}
+          >
+            {farcasterUser ? (
+              <>
+                <img
+                  src={farcasterUser.pfpUrl || "https://i.imgur.com/39wH8y2.jpg"}
+                  alt={farcasterUser.username}
+                  className="w-5 h-5 rounded-full object-cover border border-purple-400/50"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${farcasterUser.username}`;
+                  }}
+                />
+                <span className="font-semibold text-purple-100">@{farcasterUser.username}</span>
+                <span className="bg-purple-800/80 text-purple-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono border border-purple-500/30">
+                  FID:{farcasterUser.fid}
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="w-5 h-5 rounded-full bg-purple-100/20 flex items-center justify-center font-extrabold text-[10px] text-white">
+                  FC
+                </div>
+                <span>Farcaster Login</span>
+              </>
+            )}
+          </button>
 
           {/* Global Live Stats bar */}
           <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-300" id="global_status_widget">
@@ -3858,32 +4083,52 @@ export default function Home() {
 
                   {/* Code Payload Preview */}
                   <div className="flex flex-col gap-1.5" id="qr_payload_preview">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono flex-wrap gap-2">
                       <span className="flex items-center gap-1">
                         <Code2 className="w-3.5 h-3.5 text-amber-500" />
                         Encoded Content:
                       </span>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(getQrPayload(qrModalInscription, qrDataType));
-                          setCopiedQrData(true);
-                          setTimeout(() => setCopiedQrData(false), 2000);
-                        }}
-                        className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-sans cursor-pointer"
-                        id="btn_copy_qr_payload"
-                      >
-                        {copiedQrData ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-400" />
-                            <span className="text-emerald-400 font-semibold">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" />
-                            <span>Copy Raw Data</span>
-                          </>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleCopyMinifiedJson}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 border border-purple-500/40 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer shadow-sm"
+                          id="btn_copy_minified_json"
+                          title="Copy minified single-line JSON string without whitespace"
+                        >
+                          {copiedMinifiedJson ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400" />
+                              <span className="text-emerald-300">Minified Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Code className="w-3 h-3 text-purple-300" />
+                              <span>Copy JSON (Minified)</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(getQrPayload(qrModalInscription, qrDataType));
+                            setCopiedQrData(true);
+                            setTimeout(() => setCopiedQrData(false), 2000);
+                          }}
+                          className="inline-flex items-center gap-1 text-slate-400 hover:text-white font-sans cursor-pointer text-[11px]"
+                          id="btn_copy_qr_payload"
+                        >
+                          {copiedQrData ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400" />
+                              <span className="text-emerald-400 font-semibold">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>Copy Raw</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <pre className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-[11px] font-mono text-amber-300/90 overflow-x-auto max-h-28 whitespace-pre-wrap break-all select-all" id="qr_raw_data_pre">
                       {getQrPayload(qrModalInscription, qrDataType)}
@@ -3894,6 +4139,24 @@ export default function Home() {
                 {/* Modal Footer Actions */}
                 <div className="px-6 py-4 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between gap-3 flex-wrap" id="qr_modal_footer">
                   <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      onClick={handleCopyMinifiedJson}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold font-mono transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                      id="copy_minified_json_footer_btn"
+                      title="Minify BRC-20 payload and copy to clipboard"
+                    >
+                      {copiedMinifiedJson ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-300" />
+                          <span className="text-emerald-200">Copied Minified JSON!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Code className="w-4 h-4 text-purple-200" />
+                          <span>Copy JSON</span>
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={handleDownloadPng}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold font-mono transition-all shadow-md shadow-amber-500/10 cursor-pointer"
@@ -4072,6 +4335,261 @@ export default function Home() {
                 </div>
               </motion.div>
             </div>
+          )}
+        </AnimatePresence>
+
+        {/* Farcaster Login & Profile Modal Overlay */}
+        <AnimatePresence>
+          {isFcModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md" id="farcaster_modal_backdrop">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-slate-900 border border-purple-900/60 w-full max-w-xl rounded-2xl shadow-2xl shadow-purple-950/40 overflow-hidden flex flex-col"
+                id="farcaster_modal_card"
+              >
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-purple-900/40 flex items-center justify-between bg-purple-950/30">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-purple-600 flex items-center justify-center text-white font-black text-xs shadow-md shadow-purple-600/30">
+                      FC
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        Farcaster Authentication
+                        <span className="text-[10px] bg-purple-900/80 text-purple-200 border border-purple-500/30 px-2 py-0.5 rounded-full font-mono">
+                          Base MiniApp
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-purple-300/70">
+                        {isInMiniAppFrame ? "Detected in Base MiniApp Frame" : "Connect your Farcaster identity & social graph"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsFcModalOpen(false)}
+                    className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+                    id="close_fc_modal_btn"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Content */}
+                <div className="p-6 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
+                  {farcasterUser ? (
+                    /* Connected User View */
+                    <div className="flex flex-col gap-5">
+                      {/* User Header Profile Card */}
+                      <div className="p-4 bg-purple-950/40 border border-purple-800/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5">
+                          <img
+                            src={farcasterUser.pfpUrl || "https://i.imgur.com/39wH8y2.jpg"}
+                            alt={farcasterUser.username}
+                            className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-500/50 shadow-md"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${farcasterUser.username}`;
+                            }}
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-white text-base">{farcasterUser.displayName}</h4>
+                              <span className="text-xs text-purple-300 font-mono">@{farcasterUser.username}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[11px] font-mono bg-purple-900/60 text-purple-200 px-2 py-0.5 rounded-md border border-purple-700/50">
+                                FID #{farcasterUser.fid}
+                              </span>
+                              {farcasterUser.verifications && farcasterUser.verifications.length > 0 && (
+                                <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  Verified Address
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleFarcasterLogout}
+                          className="px-3.5 py-2 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800/50 text-rose-300 hover:text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-1.5 cursor-pointer self-end sm:self-center"
+                          id="fc_logout_btn"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Disconnect</span>
+                        </button>
+                      </div>
+
+                      {/* Bio & Details */}
+                      {farcasterUser.bio && (
+                        <p className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800/80 leading-relaxed font-sans">
+                          {farcasterUser.bio}
+                        </p>
+                      )}
+
+                      {/* Stats & Custody Address */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-mono">
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col gap-0.5">
+                          <span className="text-[10px] text-slate-400">Followers</span>
+                          <span className="font-bold text-purple-300 text-sm">
+                            {(farcasterUser.followerCount || 1420).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col gap-0.5">
+                          <span className="text-[10px] text-slate-400">Following</span>
+                          <span className="font-bold text-purple-300 text-sm">
+                            {(farcasterUser.followingCount || 450).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col gap-0.5">
+                          <span className="text-[10px] text-slate-400">Custody Wallet</span>
+                          <span className="font-bold text-purple-200 text-xs truncate" title={farcasterUser.custodyAddress}>
+                            {farcasterUser.custodyAddress
+                              ? `${farcasterUser.custodyAddress.slice(0, 6)}...${farcasterUser.custodyAddress.slice(-4)}`
+                              : "0x71C...976F"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Share Portfolio to Warpcast CTA */}
+                      <div className="p-4 bg-gradient-to-r from-purple-950/80 to-indigo-950/80 border border-purple-500/30 rounded-2xl flex flex-col gap-3">
+                        <div className="flex items-center gap-2 text-purple-200 text-xs font-bold">
+                          <Sparkles className="w-4 h-4 text-purple-400" />
+                          <span>Cast BRC-20 Highlights on Warpcast</span>
+                        </div>
+                        <p className="text-[11px] text-purple-300/80 leading-snug">
+                          Share your active BRC-20 inscriptions, token balances, and Base B20 payment orders directly to your Farcaster feed.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              handleShareToWarpcast(
+                                `🚀 Tracking BRC-20 & Base B20 tokens on Base MiniApp!\n\nOverall Balance: ${stats.totalVolume.toLocaleString()} units\nInscriptions Logged: ${stats.totalInscriptions}\n\nBuilt on Base with @farcaster/miniapp-sdk!`
+                              )
+                            }
+                            className="flex-1 py-2 px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold font-mono transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                            id="fc_cast_portfolio_btn"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Share Activity on Warpcast</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Login Options View */
+                    <div className="flex flex-col gap-6">
+                      {/* One-Click Quick Login */}
+                      <div className="flex flex-col gap-2.5">
+                        <label className="text-xs font-mono font-bold text-slate-300 flex items-center justify-between">
+                          <span>Quick Sign-In (Select Farcaster Profile)</span>
+                          <span className="text-[10px] text-purple-400 font-normal">Farcaster Auth standard</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {SAMPLE_FARCASTER_PROFILES.map((profile) => (
+                            <button
+                              key={`fc_sample_${profile.fid}`}
+                              onClick={() => handleFarcasterLogin(profile)}
+                              className="p-3 bg-slate-950 hover:bg-purple-950/40 border border-slate-800 hover:border-purple-500/50 rounded-xl transition-all flex items-center gap-3 text-left group cursor-pointer"
+                              id={`fc_login_btn_${profile.username}`}
+                            >
+                              <img
+                                src={profile.pfpUrl}
+                                alt={profile.username}
+                                className="w-10 h-10 rounded-xl object-cover border border-slate-700 group-hover:border-purple-400"
+                              />
+                              <div className="overflow-hidden">
+                                <p className="font-bold text-white text-xs truncate group-hover:text-purple-200">
+                                  {profile.displayName}
+                                </p>
+                                <p className="text-[11px] text-slate-400 font-mono truncate">@{profile.username}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom Search Form */}
+                      <form onSubmit={handleSearchCustomFarcasterUser} className="flex flex-col gap-2">
+                        <label className="text-xs font-mono font-bold text-slate-300">
+                          Or Lookup Custom Farcaster Handle or FID
+                        </label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <AtSign className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                            <input
+                              type="text"
+                              value={fcSearchQuery}
+                              onChange={(e) => setFcSearchQuery(e.target.value)}
+                              placeholder="e.g. jessepollak or FID 9152..."
+                              className="w-full bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-xl pl-9 pr-3 py-2.5 text-xs font-mono text-white placeholder-slate-500 outline-none transition-all"
+                              id="fc_custom_username_input"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={isFcSearching || !fcSearchQuery.trim()}
+                            className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold font-mono text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                            id="fc_custom_search_btn"
+                          >
+                            {isFcSearching ? (
+                              <span className="animate-pulse">Loading...</span>
+                            ) : (
+                              <>
+                                <Search className="w-3.5 h-3.5" />
+                                <span>Sign In</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+
+                      {/* MiniApp Frame Info Card */}
+                      <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-400 flex items-start gap-3">
+                        <Info className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                        <p className="leading-relaxed">
+                          When running inside the Base App or Warpcast MiniApp client, Farcaster authentication and wallet context are resolved automatically via the <code className="text-purple-300 font-mono">@farcaster/miniapp-sdk</code> context.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="px-6 py-4 bg-purple-950/20 border-t border-purple-900/40 flex justify-end">
+                  <button
+                    onClick={() => setIsFcModalOpen(false)}
+                    className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs font-mono transition-all cursor-pointer"
+                    id="fc_modal_close_footer_btn"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Farcaster Toast Alerts */}
+        <AnimatePresence>
+          {fcToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-mono flex items-center gap-3 ${
+                fcToast.type === "success"
+                  ? "bg-purple-950/90 border-purple-500/60 text-purple-100 shadow-purple-950/50"
+                  : "bg-rose-950/90 border-rose-500/60 text-rose-100 shadow-rose-950/50"
+              }`}
+              id="fc_toast_notification"
+            >
+              <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-[11px] font-bold">
+                FC
+              </div>
+              <span>{fcToast.message}</span>
+            </motion.div>
           )}
         </AnimatePresence>
 

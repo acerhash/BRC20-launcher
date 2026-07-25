@@ -7,6 +7,22 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "BRC-20 Explorer & Ledger",
   description: "A professional dashboard to explore BRC-20 tokens, inscriptions, and account ledgers.",
+  other: {
+    'fc:miniapp': JSON.stringify({
+      version: 'next',
+      imageUrl: 'https://brc20-explorer.app/og.png',
+      button: {
+        title: 'Launch BRC-20 Explorer',
+        action: {
+          type: 'launch_miniapp',
+          name: 'BRC-20 Explorer',
+          url: 'https://brc20-explorer.app',
+          splashImageUrl: 'https://brc20-explorer.app/splash.png',
+          splashBackgroundColor: '#020617',
+        },
+      },
+    }),
+  },
 };
 
 export default function RootLayout({
