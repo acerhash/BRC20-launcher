@@ -3605,21 +3605,28 @@ export default function Home() {
 
                   {/* QR Visual Container */}
                   <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 border border-slate-800/80 rounded-xl gap-3" id="qr_display_container">
-                    <div
-                      className="p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all"
-                      style={{ backgroundColor: qrBgColor }}
-                      id="qr_canvas_wrapper"
-                    >
-                      <QRCodeSVG
-                        id="inscription-qr-code-svg"
-                        value={getQrPayload(qrModalInscription, qrDataType)}
-                        size={190}
-                        level={qrErrorLevel}
-                        fgColor={qrFgColor}
-                        bgColor={qrBgColor}
-                        includeMargin={false}
-                      />
-                    </div>
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={`${qrModalInscription.id}-${qrDataType}`}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all"
+                        style={{ backgroundColor: qrBgColor }}
+                        id="qr_canvas_wrapper"
+                      >
+                        <QRCodeSVG
+                          id="inscription-qr-code-svg"
+                          value={getQrPayload(qrModalInscription, qrDataType)}
+                          size={190}
+                          level={qrErrorLevel}
+                          fgColor={qrFgColor}
+                          bgColor={qrBgColor}
+                          includeMargin={false}
+                        />
+                      </motion.div>
+                    </AnimatePresence>
 
                     {/* Color & Density Control Panel */}
                     <div className="flex flex-col gap-2 w-full max-w-sm" id="qr_color_controls_panel">
