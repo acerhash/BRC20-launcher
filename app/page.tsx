@@ -177,6 +177,7 @@ interface B20Token {
   launchedAt: string;
   supportsMemo: boolean;
   memosCount: number;
+  logoUrl?: string;
 }
 
 interface B20OrderPayment {
@@ -210,7 +211,8 @@ const INITIAL_B20_TOKENS: B20Token[] = [
     deployer: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
     launchedAt: "2026-07-01 10:00:00",
     supportsMemo: true,
-    memosCount: 142
+    memosCount: 142,
+    logoUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=BCASH"
   },
   {
     id: "b20-2",
@@ -225,7 +227,8 @@ const INITIAL_B20_TOKENS: B20Token[] = [
     deployer: "0x324082901a87b9c0214a1f9028a019e840129bc2",
     launchedAt: "2026-07-05 14:20:00",
     supportsMemo: true,
-    memosCount: 89
+    memosCount: 89,
+    logoUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=BUILD"
   },
   {
     id: "b20-3",
@@ -240,7 +243,8 @@ const INITIAL_B20_TOKENS: B20Token[] = [
     deployer: "0x892a014920194b0291a0293019a820391092a01f",
     launchedAt: "2026-07-12 11:15:00",
     supportsMemo: true,
-    memosCount: 18
+    memosCount: 18,
+    logoUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=RPAY"
   }
 ];
 
@@ -928,9 +932,28 @@ export default function Home() {
   const [launchDecimals, setLaunchDecimals] = useState<number>(18);
   const [launchCap, setLaunchCap] = useState<number>(10000000);
   const [launchPolicy, setLaunchPolicy] = useState<"Open" | "Allowlist" | "KYC Restricted">("Open");
+  const [launchLogoUrl, setLaunchLogoUrl] = useState<string>("");
   const [isDeployingB20, setIsDeployingB20] = useState(false);
   const [deployStep, setDeployStep] = useState(0);
   const [b20DeployToast, setB20DeployToast] = useState<string | null>(null);
+
+  // Handle Token Logo Image Upload
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        alert("Image size must be less than 3MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setLaunchLogoUrl(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // B20 Payment Form States
   const [payTokenAddress, setPayTokenAddress] = useState<string>("0xB200a891f7c22e20b2f9104e129bc83a12901402");
@@ -1177,7 +1200,8 @@ export default function Home() {
         deployer: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
         launchedAt: nowStr,
         supportsMemo: true,
-        memosCount: 0
+        memosCount: 0,
+        logoUrl: launchLogoUrl.trim() || `https://api.dicebear.com/7.x/identicon/svg?seed=${cleanSymbol}`
       };
 
       setB20Tokens((prev) => [newB20, ...prev]);
@@ -1185,6 +1209,7 @@ export default function Home() {
       setDeployStep(0);
       setLaunchName("");
       setLaunchSymbol("");
+      setLaunchLogoUrl("");
       setB20DeployToast(`B20 Token ${cleanSymbol} deployed on Base at ${contractAddress.slice(0, 10)}...!`);
       setTimeout(() => setB20DeployToast(null), 5000);
     }, 3000);
@@ -2612,6 +2637,92 @@ export default function Home() {
                       </div>
                     </div>
 
+                    {/* Token Logo / Icon Input Section */}
+                    <div className="md:col-span-2 flex flex-col gap-2 p-3.5 bg-slate-950 border border-slate-800 rounded-xl" id="b20_logo_input_container">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="b20_logo_url_input" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                          <Upload className="w-3.5 h-3.5 text-blue-400" />
+                          Token Logo / Icon Metadata
+                          <span className="text-[10px] text-slate-500 font-mono font-normal">(File upload or Image URL)</span>
+                        </label>
+                        {launchLogoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setLaunchLogoUrl("")}
+                            className="text-[10px] text-rose-400 hover:text-rose-300 font-mono flex items-center gap-1 cursor-pointer"
+                            id="btn_clear_token_logo"
+                          >
+                            Reset Custom Logo
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                        {/* File Upload Button / Hidden File Input */}
+                        <div className="relative">
+                          <input
+                            type="file"
+                            id="b20_logo_file_input"
+                            accept="image/*"
+                            onChange={handleLogoFileUpload}
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor="b20_logo_file_input"
+                            className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-mono text-slate-200 cursor-pointer transition-all w-full text-center shadow-sm"
+                            id="lbl_upload_token_logo"
+                          >
+                            <Upload className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Upload Logo Image</span>
+                          </label>
+                        </div>
+
+                        {/* URL Input */}
+                        <div className="sm:col-span-2 relative">
+                          <input
+                            id="b20_logo_url_input"
+                            type="url"
+                            placeholder="Or paste image URL (e.g. https://...)"
+                            value={launchLogoUrl}
+                            onChange={(e) => setLaunchLogoUrl(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono truncate"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Logo Preview & Presets */}
+                      <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-900/80">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-[11px] text-slate-400 font-mono">Preview:</span>
+                          <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700/80 p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                            <img
+                              src={launchLogoUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${launchSymbol.trim() || "B20"}`}
+                              alt="Token Logo Preview"
+                              className="w-full h-full object-cover rounded-md"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${launchSymbol.trim() || "B20"}`;
+                              }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-mono truncate max-w-[200px]">
+                            {launchLogoUrl ? "Custom Logo Attached" : "Auto Generated Avatar"}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const seed = launchSymbol.trim() || launchName.trim() || `token-${Date.now()}`;
+                            setLaunchLogoUrl(`https://api.dicebear.com/7.x/identicon/svg?seed=${seed}`);
+                          }}
+                          className="text-[10px] text-blue-400 hover:text-blue-300 font-mono underline cursor-pointer"
+                          id="btn_auto_generate_logo"
+                        >
+                          Auto Generate Icon
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Features checklist */}
                     <div className="md:col-span-2 flex flex-wrap gap-4 pt-2 border-t border-slate-800/60 text-xs text-slate-300">
                       <div className="flex items-center gap-1.5 font-mono text-[11px] text-blue-300">
@@ -2671,16 +2782,32 @@ export default function Home() {
                         id={`b20_card_${token.symbol}`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-base font-bold text-white">{token.name}</h4>
-                              <span className="text-xs font-bold font-mono px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
-                                ${token.symbol}
-                              </span>
+                          <div className="flex items-center gap-3">
+                            {token.logoUrl ? (
+                              <img
+                                src={token.logoUrl}
+                                alt={`${token.symbol} logo`}
+                                className="w-10 h-10 rounded-xl object-cover bg-slate-950 border border-slate-700/80 p-0.5 shrink-0 shadow-sm"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${token.symbol}`;
+                                }}
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-xl bg-blue-950 border border-blue-800 text-blue-300 font-bold text-xs flex items-center justify-center shrink-0 font-mono">
+                                {token.symbol.slice(0, 2)}
+                              </div>
+                            )}
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-base font-bold text-white">{token.name}</h4>
+                                <span className="text-xs font-bold font-mono px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
+                                  ${token.symbol}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                {token.decimals} Decimals • Cap: {token.totalSupplyCap.toLocaleString()} {token.symbol}
+                              </p>
                             </div>
-                            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                              {token.decimals} Decimals • Cap: {token.totalSupplyCap.toLocaleString()} {token.symbol}
-                            </p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
