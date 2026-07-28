@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
@@ -1147,7 +1147,24 @@ export default function Home() {
   const [qrDataType, setQrDataType] = useState<"protocol" | "txhash" | "full">("protocol");
   const [qrActiveTab, setQrActiveTab] = useState<"generator" | "history">("generator");
   const [qrHistory, setQrHistory] = useState<QrHistoryItem[]>([]);
+  const [qrHistorySortBy, setQrHistorySortBy] = useState<"timestamp" | "ticker">("timestamp");
   const [copiedHistoryId, setCopiedHistoryId] = useState<string | null>(null);
+
+  // Memoized sorted QR history list
+  const sortedQrHistory = useMemo(() => {
+    const items = [...qrHistory];
+    if (qrHistorySortBy === "ticker") {
+      return items.sort((a, b) => a.ticker.localeCompare(b.ticker));
+    }
+    return items.sort((a, b) => {
+      const timeA = parseInt(a.id.split("-").pop() || "0", 10);
+      const timeB = parseInt(b.id.split("-").pop() || "0", 10);
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA > 0 && timeB > 0) {
+        return timeB - timeA;
+      }
+      return b.timestamp.localeCompare(a.timestamp);
+    });
+  }, [qrHistory, qrHistorySortBy]);
   const [qrFgColor, setQrFgColor] = useState("#000000");
   const [qrBgColor, setQrBgColor] = useState("#ffffff");
   const [isHighContrast, setIsHighContrast] = useState(false);
@@ -4516,22 +4533,39 @@ export default function Home() {
                 {/* Modal Body: History Tab */}
                 {qrActiveTab === "history" && (
                   <div className="p-6 flex flex-col gap-4 max-h-[480px] overflow-y-auto" id="qr_modal_history_view">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <History className="w-4 h-4 text-amber-400" />
                         <span className="text-xs font-bold text-white font-mono">
                           Last 5 Generated QR Codes
                         </span>
                       </div>
-                      {qrHistory.length > 0 && (
-                        <button
-                          onClick={() => setQrHistory([])}
-                          className="text-[11px] text-rose-400 hover:text-rose-300 font-mono underline cursor-pointer"
-                          id="btn_clear_qr_history"
-                        >
-                          Clear History
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {/* Sort Dropdown */}
+                        <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1" id="qr_history_sort_wrapper">
+                          <ArrowUpDown className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span className="text-[10px] text-slate-400 font-mono">Sort:</span>
+                          <select
+                            value={qrHistorySortBy}
+                            onChange={(e) => setQrHistorySortBy(e.target.value as "timestamp" | "ticker")}
+                            className="bg-transparent text-[11px] font-mono text-amber-300 focus:outline-none cursor-pointer"
+                            id="qr_history_sort_dropdown"
+                          >
+                            <option value="timestamp" className="bg-slate-900 text-slate-200">Timestamp</option>
+                            <option value="ticker" className="bg-slate-900 text-slate-200">Ticker Label</option>
+                          </select>
+                        </div>
+
+                        {qrHistory.length > 0 && (
+                          <button
+                            onClick={() => setQrHistory([])}
+                            className="text-[11px] text-rose-400 hover:text-rose-300 font-mono underline cursor-pointer"
+                            id="btn_clear_qr_history"
+                          >
+                            Clear History
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {qrHistory.length === 0 ? (
@@ -4544,7 +4578,7 @@ export default function Home() {
                       </div>
                     ) : (
                       <div className="flex flex-col gap-3">
-                        {qrHistory.map((item, idx) => {
+                        {sortedQrHistory.map((item, idx) => {
                           const isCurrentActive =
                             qrModalInscription?.id === item.inscriptionId && qrDataType === item.dataType;
 
