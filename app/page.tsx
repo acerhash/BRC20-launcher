@@ -1415,6 +1415,7 @@ export default function Home() {
   const [qrTransparentBg, setQrTransparentBg] = useState(false);
   const [isHighContrast, setIsHighContrast] = useState(false);
   const [qrPattern, setQrPattern] = useState<"standard" | "dots" | "rounded" | "cyber" | "circuit" | "mesh">("standard");
+  const [enablePatternOverlays, setEnablePatternOverlays] = useState(true);
   const [qrErrorLevel, setQrErrorLevel] = useState<"L" | "M" | "Q" | "H">("H");
   const [copiedQrData, setCopiedQrData] = useState(false);
   const [copiedMinifiedJson, setCopiedMinifiedJson] = useState(false);
@@ -5090,16 +5091,16 @@ export default function Home() {
                           id="qr_canvas_wrapper"
                         >
                           {/* Geometric Pattern & Dot-Matrix Density Overlay Layers */}
-                          {qrPattern === "cyber" && (
+                          {enablePatternOverlays && qrPattern === "cyber" && (
                             <div className="absolute inset-0 pointer-events-none opacity-25 bg-[radial-gradient(#d97706_1.5px,transparent_1.5px)] [background-size:8px_8px]" />
                           )}
-                          {qrPattern === "circuit" && (
+                          {enablePatternOverlays && qrPattern === "circuit" && (
                             <div className="absolute inset-0 pointer-events-none opacity-20 border border-amber-500/40 bg-[linear-gradient(to_right,#d97706_1px,transparent_1px),linear-gradient(to_bottom,#d97706_1px,transparent_1px)] [background-size:12px_12px]" />
                           )}
-                          {qrPattern === "mesh" && (
+                          {enablePatternOverlays && qrPattern === "mesh" && (
                             <div className="absolute inset-0 pointer-events-none opacity-30 bg-[radial-gradient(#059669_1.5px,transparent_1.5px)] [background-size:6px_6px]" />
                           )}
-                          {qrPattern === "dots" && (
+                          {enablePatternOverlays && qrPattern === "dots" && (
                             <div className="absolute inset-0 pointer-events-none opacity-35 bg-[radial-gradient(#000000_1.5px,transparent_1.5px)] [background-size:5px_5px] mix-blend-multiply" />
                           )}
 
@@ -5360,12 +5361,23 @@ export default function Home() {
 
                         {/* Geometric Pattern & Dot-Matrix Density Grid Panel */}
                         <div className="flex flex-col gap-1.5 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl" id="qr_pattern_grid_panel">
-                          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 flex-wrap gap-2">
                             <div className="flex items-center gap-1.5">
                               <Grid className="w-3.5 h-3.5 text-amber-400" />
                               <span>Pattern & Overlay Grid:</span>
                             </div>
-                            <span className="text-[10px] text-amber-400/90 font-mono capitalize">{qrPattern}</span>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-mono hover:text-amber-300 transition-colors" id="enable_pattern_overlays_wrapper">
+                              <input
+                                type="checkbox"
+                                checked={enablePatternOverlays}
+                                onChange={(e) => setEnablePatternOverlays(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500/50 focus:ring-offset-slate-900 bg-slate-950 cursor-pointer"
+                                id="enable_pattern_overlays_checkbox"
+                              />
+                              <span className={enablePatternOverlays ? "text-amber-300 font-bold" : "text-slate-400"}>
+                                Enable Pattern Overlays
+                              </span>
+                            </label>
                           </div>
                           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-0.5">
                             {[
