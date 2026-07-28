@@ -1148,6 +1148,8 @@ export default function Home() {
   const [qrActiveTab, setQrActiveTab] = useState<"generator" | "history">("generator");
   const [qrHistory, setQrHistory] = useState<QrHistoryItem[]>([]);
   const [qrHistorySortBy, setQrHistorySortBy] = useState<"timestamp" | "ticker">("timestamp");
+  const [selectedHistoryItemId, setSelectedHistoryItemId] = useState<string | null>(null);
+  const [copiedSelectedPayload, setCopiedSelectedPayload] = useState(false);
   const [copiedHistoryId, setCopiedHistoryId] = useState<string | null>(null);
 
   // Memoized sorted QR history list
@@ -1165,8 +1167,19 @@ export default function Home() {
       return b.timestamp.localeCompare(a.timestamp);
     });
   }, [qrHistory, qrHistorySortBy]);
+
+  // Derived selected history item
+  const selectedHistoryItem = useMemo(() => {
+    if (sortedQrHistory.length === 0) return null;
+    if (selectedHistoryItemId) {
+      const found = sortedQrHistory.find((item) => item.id === selectedHistoryItemId);
+      if (found) return found;
+    }
+    return sortedQrHistory[0];
+  }, [sortedQrHistory, selectedHistoryItemId]);
   const [qrFgColor, setQrFgColor] = useState("#000000");
   const [qrBgColor, setQrBgColor] = useState("#ffffff");
+  const [qrTransparentBg, setQrTransparentBg] = useState(false);
   const [isHighContrast, setIsHighContrast] = useState(false);
   const [qrPattern, setQrPattern] = useState<"standard" | "dots" | "rounded" | "cyber" | "circuit" | "mesh">("standard");
   const [qrErrorLevel, setQrErrorLevel] = useState<"L" | "M" | "Q" | "H">("H");
@@ -4177,8 +4190,10 @@ export default function Home() {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.2, ease: "easeOut" }}
-                          className="p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all relative overflow-hidden"
-                          style={{ backgroundColor: isHighContrast ? "#ffffff" : qrBgColor }}
+                          className={`p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all relative overflow-hidden ${
+                            qrTransparentBg ? "bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:8px_8px]" : ""
+                          }`}
+                          style={{ backgroundColor: qrTransparentBg ? "transparent" : (isHighContrast ? "#ffffff" : qrBgColor) }}
                           id="qr_canvas_wrapper"
                         >
                           {/* Geometric Pattern & Dot-Matrix Density Overlay Layers */}
@@ -4201,7 +4216,7 @@ export default function Home() {
                             size={190}
                             level={qrErrorLevel}
                             fgColor={isHighContrast ? "#000000" : qrFgColor}
-                            bgColor={isHighContrast ? "#ffffff" : qrBgColor}
+                            bgColor={qrTransparentBg ? "transparent" : (isHighContrast ? "#ffffff" : qrBgColor)}
                             includeMargin={false}
                             style={{
                               filter:
@@ -4256,6 +4271,7 @@ export default function Home() {
                                 setQrBgColor("#ffffff");
                                 setIsHighContrast(false);
                                 setQrPattern("standard");
+                                setQrTransparentBg(false);
                               }}
                               className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-amber-300 px-2 py-0.5 rounded bg-slate-950 border border-slate-800 hover:border-amber-500/40 transition-all cursor-pointer font-mono"
                               id="btn_reset_qr_colors"
@@ -4398,7 +4414,7 @@ export default function Home() {
                                   setIsHighContrast(false);
                                 }}
                                 className={`w-4 h-4 rounded-full transition-all border cursor-pointer ${
-                                  !isHighContrast && qrBgColor.toLowerCase() === swatch.hex.toLowerCase()
+                                  !isHighContrast && !qrTransparentBg && qrBgColor.toLowerCase() === swatch.hex.toLowerCase()
                                     ? "scale-125 border-white ring-2 ring-amber-500/60 shadow-md"
                                     : "border-slate-700 hover:scale-110 opacity-80 hover:opacity-100"
                                 }`}
@@ -4420,10 +4436,33 @@ export default function Home() {
                                   className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
                                   id="qr_bg_custom_color_input"
                                 />
-                                <div className="w-3 h-3 rounded-full border border-slate-500" style={{ backgroundColor: isHighContrast ? "#ffffff" : qrBgColor }} />
+                                <div className="w-3 h-3 rounded-full border border-slate-500" style={{ backgroundColor: qrTransparentBg ? "transparent" : (isHighContrast ? "#ffffff" : qrBgColor) }} />
                               </label>
                             </div>
                           </div>
+                        </div>
+
+                        {/* Transparent Background Checkbox Bar */}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_transparent_bg_bar">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                            <Layers className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Transparent Background:</span>
+                          </div>
+                          <label
+                            className="flex items-center gap-2 cursor-pointer text-[11px] font-mono text-slate-300 hover:text-amber-300 transition-colors"
+                            id="qr_transparent_bg_checkbox_wrapper"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={qrTransparentBg}
+                              onChange={(e) => setQrTransparentBg(e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500/50 focus:ring-offset-slate-900 bg-slate-950 cursor-pointer"
+                              id="qr_transparent_bg_checkbox"
+                            />
+                            <span className={qrTransparentBg ? "text-amber-300 font-bold" : "text-slate-400"}>
+                              {qrTransparentBg ? "Enabled (Overrides BG)" : "Disabled"}
+                            </span>
+                          </label>
                         </div>
 
                         {/* Geometric Pattern & Dot-Matrix Density Grid Panel */}
@@ -4540,7 +4579,7 @@ export default function Home() {
                           Last 5 Generated QR Codes
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {/* Sort Dropdown */}
                         <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1" id="qr_history_sort_wrapper">
                           <ArrowUpDown className="w-3 h-3 text-amber-400 shrink-0" />
@@ -4556,9 +4595,47 @@ export default function Home() {
                           </select>
                         </div>
 
+                        {/* Copy Selected Payload Button */}
+                        <button
+                          onClick={() => {
+                            if (selectedHistoryItem) {
+                              navigator.clipboard.writeText(selectedHistoryItem.payload);
+                              setCopiedSelectedPayload(true);
+                              setTimeout(() => setCopiedSelectedPayload(false), 2000);
+                            }
+                          }}
+                          disabled={!selectedHistoryItem}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all border cursor-pointer ${
+                            copiedSelectedPayload
+                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                              : "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow-sm"
+                          } disabled:opacity-40 disabled:cursor-not-allowed`}
+                          id="btn_copy_selected_history_payload"
+                          title={
+                            selectedHistoryItem
+                              ? `Copy payload for #${selectedHistoryItem.number} ($${selectedHistoryItem.ticker.toUpperCase()})`
+                              : "No history item available"
+                          }
+                        >
+                          {copiedSelectedPayload ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                              <span>Copy Payload</span>
+                            </>
+                          )}
+                        </button>
+
                         {qrHistory.length > 0 && (
                           <button
-                            onClick={() => setQrHistory([])}
+                            onClick={() => {
+                              setQrHistory([]);
+                              setSelectedHistoryItemId(null);
+                            }}
                             className="text-[11px] text-rose-400 hover:text-rose-300 font-mono underline cursor-pointer"
                             id="btn_clear_qr_history"
                           >
@@ -4581,13 +4658,17 @@ export default function Home() {
                         {sortedQrHistory.map((item, idx) => {
                           const isCurrentActive =
                             qrModalInscription?.id === item.inscriptionId && qrDataType === item.dataType;
+                          const isSelected = selectedHistoryItem?.id === item.id;
 
                           return (
                             <div
                               key={item.id}
-                              className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
-                                isCurrentActive
-                                  ? "bg-amber-950/30 border-amber-500/50 shadow-md"
+                              onClick={() => setSelectedHistoryItemId(item.id)}
+                              className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 cursor-pointer ${
+                                isSelected
+                                  ? "bg-amber-950/30 border-amber-500/80 ring-1 ring-amber-500/40 shadow-md"
+                                  : isCurrentActive
+                                  ? "bg-amber-950/20 border-amber-500/40"
                                   : "bg-slate-950/80 border-slate-800 hover:border-slate-700"
                               }`}
                               id={`qr_history_item_${idx}`}
@@ -4607,6 +4688,11 @@ export default function Home() {
                                   {isCurrentActive && (
                                     <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                                       Active
+                                    </span>
+                                  )}
+                                  {isSelected && (
+                                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                      Selected
                                     </span>
                                   )}
                                 </div>
