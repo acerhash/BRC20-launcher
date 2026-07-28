@@ -50,7 +50,8 @@ import {
   Moon,
   User,
   LogOut,
-  AtSign
+  AtSign,
+  Contrast
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -178,6 +179,17 @@ interface B20Token {
   supportsMemo: boolean;
   memosCount: number;
   logoUrl?: string;
+}
+
+interface QrHistoryItem {
+  id: string;
+  inscriptionId: string;
+  number: number;
+  ticker: string;
+  dataType: "protocol" | "txhash" | "full";
+  payload: string;
+  timestamp: string;
+  inscription: Inscription;
 }
 
 interface B20OrderPayment {
@@ -1126,8 +1138,12 @@ export default function Home() {
   // QR Code Modal State
   const [qrModalInscription, setQrModalInscription] = useState<Inscription | null>(null);
   const [qrDataType, setQrDataType] = useState<"protocol" | "txhash" | "full">("protocol");
+  const [qrActiveTab, setQrActiveTab] = useState<"generator" | "history">("generator");
+  const [qrHistory, setQrHistory] = useState<QrHistoryItem[]>([]);
+  const [copiedHistoryId, setCopiedHistoryId] = useState<string | null>(null);
   const [qrFgColor, setQrFgColor] = useState("#000000");
   const [qrBgColor, setQrBgColor] = useState("#ffffff");
+  const [isHighContrast, setIsHighContrast] = useState(false);
   const [qrErrorLevel, setQrErrorLevel] = useState<"L" | "M" | "Q" | "H">("H");
   const [copiedQrData, setCopiedQrData] = useState(false);
   const [copiedMinifiedJson, setCopiedMinifiedJson] = useState(false);
@@ -1417,6 +1433,34 @@ export default function Home() {
       timestamp: insc.timestamp
     }, null, 2);
   };
+
+  // Record QR code generations into history (keeping last 5 items)
+  useEffect(() => {
+    if (qrModalInscription) {
+      const payload = getQrPayload(qrModalInscription, qrDataType);
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+      const newItem: QrHistoryItem = {
+        id: `${qrModalInscription.id}-${qrDataType}-${now.getTime()}`,
+        inscriptionId: qrModalInscription.id,
+        number: qrModalInscription.number,
+        ticker: qrModalInscription.ticker,
+        dataType: qrDataType,
+        payload,
+        timestamp: timeStr,
+        inscription: qrModalInscription
+      };
+
+      setQrHistory((prev) => {
+        if (prev.length > 0 && prev[0].payload === payload) {
+          return prev;
+        }
+        const filtered = prev.filter((item) => item.payload !== payload);
+        return [newItem, ...filtered].slice(0, 5);
+      });
+    }
+  }, [qrModalInscription, qrDataType]);
 
   // Helper to trigger PNG download of the generated QR code
   const handleDownloadPng = useCallback(() => {
@@ -4026,242 +4070,508 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* Modal Body */}
-                <div className="p-6 flex flex-col gap-5" id="qr_modal_body">
-                  {/* Mode Selector */}
-                  <div className="flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono" id="qr_type_selector">
-                    <button
-                      onClick={() => setQrDataType("protocol")}
-                      className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
-                        qrDataType === "protocol"
-                          ? "bg-amber-500 text-slate-950 font-bold shadow-md"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                      id="qr_tab_protocol"
-                    >
-                      BRC-20 Payload
-                    </button>
-                    <button
-                      onClick={() => setQrDataType("txhash")}
-                      className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
-                        qrDataType === "txhash"
-                          ? "bg-amber-500 text-slate-950 font-bold shadow-md"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                      id="qr_tab_txhash"
-                    >
-                      Bitcoin URI
-                    </button>
-                    <button
-                      onClick={() => setQrDataType("full")}
-                      className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
-                        qrDataType === "full"
-                          ? "bg-amber-500 text-slate-950 font-bold shadow-md"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                      id="qr_tab_full"
-                    >
-                      Full JSON
-                    </button>
-                  </div>
-
-                  {/* QR Visual Container */}
-                  <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 border border-slate-800/80 rounded-xl gap-3" id="qr_display_container">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={`${qrModalInscription.id}-${qrDataType}`}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all"
-                        style={{ backgroundColor: qrBgColor }}
-                        id="qr_canvas_wrapper"
-                      >
-                        <QRCodeSVG
-                          id="inscription-qr-code-svg"
-                          value={getQrPayload(qrModalInscription, qrDataType)}
-                          size={190}
-                          level={qrErrorLevel}
-                          fgColor={qrFgColor}
-                          bgColor={qrBgColor}
-                          includeMargin={false}
-                        />
-                      </motion.div>
-                    </AnimatePresence>
-
-                    {/* Color & Density Control Panel */}
-                    <div className="flex flex-col gap-2 w-full max-w-sm" id="qr_color_controls_panel">
-                      {/* Error Correction Level Dropdown Bar */}
-                      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_error_correction_bar">
-                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
-                          <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Error Correction:</span>
-                        </div>
-                        <select
-                          value={qrErrorLevel}
-                          onChange={(e) => setQrErrorLevel(e.target.value as "L" | "M" | "Q" | "H")}
-                          className="bg-slate-950 border border-slate-700 hover:border-amber-500/50 text-amber-300 rounded-lg text-xs font-mono py-1 px-2 focus:outline-none focus:border-amber-500 cursor-pointer"
-                          id="qr_error_correction_select"
-                        >
-                          <option value="L">L - Low (7% recover, max density)</option>
-                          <option value="M">M - Medium (15% recover, balanced)</option>
-                          <option value="Q">Q - Quartile (25% recover, high)</option>
-                          <option value="H">H - High (30% recover, max reliability)</option>
-                        </select>
-                      </div>
-
-                      {/* Foreground Color Picker Bar */}
-                      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_fg_color_picker_bar">
-                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
-                          <Palette className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Foreground:</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {/* Preset FG Swatches */}
-                          {[
-                            { name: "Black", hex: "#000000" },
-                            { name: "Amber", hex: "#d97706" },
-                            { name: "Emerald", hex: "#059669" },
-                            { name: "Indigo", hex: "#4f46e5" },
-                            { name: "Crimson", hex: "#dc2626" },
-                            { name: "White", hex: "#ffffff" },
-                          ].map((swatch) => (
-                            <button
-                              key={`fg_${swatch.hex}`}
-                              onClick={() => setQrFgColor(swatch.hex)}
-                              className={`w-4 h-4 rounded-full transition-all border cursor-pointer ${
-                                qrFgColor.toLowerCase() === swatch.hex.toLowerCase()
-                                  ? "scale-125 border-white ring-2 ring-amber-500/60 shadow-md"
-                                  : "border-slate-700 hover:scale-110 opacity-80 hover:opacity-100"
-                              }`}
-                              style={{ backgroundColor: swatch.hex }}
-                              title={`FG: ${swatch.name} (${swatch.hex})`}
-                              id={`qr_fg_swatch_${swatch.name.toLowerCase().replace(/\s+/g, "_")}`}
-                            />
-                          ))}
-                          {/* Custom FG Input */}
-                          <div className="relative flex items-center border-l border-slate-800 pl-1.5">
-                            <label className="relative flex items-center justify-center w-5 h-5 rounded-md bg-slate-800 border border-slate-700 hover:border-amber-500/50 cursor-pointer transition-all" title="Custom Foreground Color">
-                              <input
-                                type="color"
-                                value={qrFgColor}
-                                onChange={(e) => setQrFgColor(e.target.value)}
-                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                                id="qr_fg_custom_color_input"
-                              />
-                              <div className="w-3 h-3 rounded-full border border-slate-500" style={{ backgroundColor: qrFgColor }} />
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Background Color Picker Bar */}
-                      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_bg_color_picker_bar">
-                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
-                          <Palette className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Background:</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {/* Preset BG Swatches */}
-                          {[
-                            { name: "White", hex: "#ffffff" },
-                            { name: "Dark Slate", hex: "#0f172a" },
-                            { name: "Amber Cream", hex: "#fef3c7" },
-                            { name: "Pure Black", hex: "#000000" },
-                            { name: "Midnight", hex: "#020617" },
-                          ].map((swatch) => (
-                            <button
-                              key={`bg_${swatch.hex}`}
-                              onClick={() => setQrBgColor(swatch.hex)}
-                              className={`w-4 h-4 rounded-full transition-all border cursor-pointer ${
-                                qrBgColor.toLowerCase() === swatch.hex.toLowerCase()
-                                  ? "scale-125 border-white ring-2 ring-amber-500/60 shadow-md"
-                                  : "border-slate-700 hover:scale-110 opacity-80 hover:opacity-100"
-                              }`}
-                              style={{ backgroundColor: swatch.hex }}
-                              title={`BG: ${swatch.name} (${swatch.hex})`}
-                              id={`qr_bg_swatch_${swatch.name.toLowerCase().replace(/\s+/g, "_")}`}
-                            />
-                          ))}
-                          {/* Custom BG Input */}
-                          <div className="relative flex items-center border-l border-slate-800 pl-1.5">
-                            <label className="relative flex items-center justify-center w-5 h-5 rounded-md bg-slate-800 border border-slate-700 hover:border-amber-500/50 cursor-pointer transition-all" title="Custom Background Color">
-                              <input
-                                type="color"
-                                value={qrBgColor}
-                                onChange={(e) => setQrBgColor(e.target.value)}
-                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                                id="qr_bg_custom_color_input"
-                              />
-                              <div className="w-3 h-3 rounded-full border border-slate-500" style={{ backgroundColor: qrBgColor }} />
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] text-slate-400 text-center font-mono">
-                      {qrDataType === "protocol" && "Scan to read BRC-20 JSON inscription protocol payload"}
-                      {qrDataType === "txhash" && "Scan to open Bitcoin transaction URI reference"}
-                      {qrDataType === "full" && "Scan to read full inscription metadata record"}
-                    </p>
-                  </div>
-
-                  {/* Code Payload Preview */}
-                  <div className="flex flex-col gap-1.5" id="qr_payload_preview">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono flex-wrap gap-2">
-                      <span className="flex items-center gap-1">
-                        <Code2 className="w-3.5 h-3.5 text-amber-500" />
-                        Encoded Content:
+                {/* Top Main Navigation Tabs (QR Generator vs History) */}
+                <div className="flex items-center border-b border-slate-800 bg-slate-950/80 px-6 pt-2 gap-2" id="qr_modal_main_tabs">
+                  <button
+                    onClick={() => setQrActiveTab("generator")}
+                    className={`flex items-center gap-2 py-2 px-4 border-b-2 font-mono text-xs font-semibold transition-all cursor-pointer ${
+                      qrActiveTab === "generator"
+                        ? "border-amber-500 text-amber-400"
+                        : "border-transparent text-slate-400 hover:text-white"
+                    }`}
+                    id="qr_main_tab_generator"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>QR Generator</span>
+                  </button>
+                  <button
+                    onClick={() => setQrActiveTab("history")}
+                    className={`flex items-center gap-2 py-2 px-4 border-b-2 font-mono text-xs font-semibold transition-all cursor-pointer relative ${
+                      qrActiveTab === "history"
+                        ? "border-amber-500 text-amber-400"
+                        : "border-transparent text-slate-400 hover:text-white"
+                    }`}
+                    id="qr_main_tab_history"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>History</span>
+                    {qrHistory.length > 0 && (
+                      <span className="px-1.5 py-0.2 bg-amber-500/20 text-amber-300 text-[10px] rounded-full border border-amber-500/30">
+                        {qrHistory.length}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleCopyMinifiedJson}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 border border-purple-500/40 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer shadow-sm"
-                          id="btn_copy_minified_json"
-                          title="Copy minified single-line JSON string without whitespace"
-                        >
-                          {copiedMinifiedJson ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span className="text-emerald-300">Minified Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Code className="w-3 h-3 text-purple-300" />
-                              <span>Copy JSON (Minified)</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(getQrPayload(qrModalInscription, qrDataType));
-                            setCopiedQrData(true);
-                            setTimeout(() => setCopiedQrData(false), 2000);
-                          }}
-                          className="inline-flex items-center gap-1 text-slate-400 hover:text-white font-sans cursor-pointer text-[11px]"
-                          id="btn_copy_qr_payload"
-                        >
-                          {copiedQrData ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span className="text-emerald-400 font-semibold">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Copy Raw</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                    <pre className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-[11px] font-mono text-amber-300/90 overflow-x-auto max-h-28 whitespace-pre-wrap break-all select-all" id="qr_raw_data_pre">
-                      {getQrPayload(qrModalInscription, qrDataType)}
-                    </pre>
-                  </div>
+                    )}
+                  </button>
                 </div>
+
+                {/* Modal Body: Generator Tab */}
+                {qrActiveTab === "generator" && (
+                  <div className="p-6 flex flex-col gap-5" id="qr_modal_body">
+                    {/* Mode Selector */}
+                    <div className="flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono" id="qr_type_selector">
+                      <button
+                        onClick={() => setQrDataType("protocol")}
+                        className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
+                          qrDataType === "protocol"
+                            ? "bg-amber-500 text-slate-950 font-bold shadow-md"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                        id="qr_tab_protocol"
+                      >
+                        BRC-20 Payload
+                      </button>
+                      <button
+                        onClick={() => setQrDataType("txhash")}
+                        className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
+                          qrDataType === "txhash"
+                            ? "bg-amber-500 text-slate-950 font-bold shadow-md"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                        id="qr_tab_txhash"
+                      >
+                        Bitcoin URI
+                      </button>
+                      <button
+                        onClick={() => setQrDataType("full")}
+                        className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
+                          qrDataType === "full"
+                            ? "bg-amber-500 text-slate-950 font-bold shadow-md"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                        id="qr_tab_full"
+                      >
+                        Full JSON
+                      </button>
+                    </div>
+
+                    {/* QR Visual Container */}
+                    <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 border border-slate-800/80 rounded-xl gap-3" id="qr_display_container">
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={`${qrModalInscription.id}-${qrDataType}`}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all"
+                          style={{ backgroundColor: isHighContrast ? "#ffffff" : qrBgColor }}
+                          id="qr_canvas_wrapper"
+                        >
+                          <QRCodeSVG
+                            id="inscription-qr-code-svg"
+                            value={getQrPayload(qrModalInscription, qrDataType)}
+                            size={190}
+                            level={qrErrorLevel}
+                            fgColor={isHighContrast ? "#000000" : qrFgColor}
+                            bgColor={isHighContrast ? "#ffffff" : qrBgColor}
+                            includeMargin={false}
+                          />
+                        </motion.div>
+                      </AnimatePresence>
+
+                      {/* Color & Density Control Panel */}
+                      <div className="flex flex-col gap-2 w-full max-w-sm" id="qr_color_controls_panel">
+                        {/* High Contrast Mode Toggle Bar */}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_high_contrast_bar">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                            <Contrast className="w-3.5 h-3.5 text-amber-400" />
+                            <span>High Contrast Mode:</span>
+                          </div>
+                          <button
+                            onClick={() => setIsHighContrast(!isHighContrast)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border ${
+                              isHighContrast
+                                ? "bg-amber-500 text-slate-950 border-amber-400 shadow-md ring-2 ring-amber-500/30"
+                                : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+                            }`}
+                            id="btn_toggle_high_contrast"
+                            title="Override colors with pure high contrast black (#000000) on white (#ffffff)"
+                          >
+                            <Contrast className="w-3.5 h-3.5" />
+                            <span>{isHighContrast ? "ACTIVE (#000 / #FFF)" : "Enable B&W"}</span>
+                          </button>
+                        </div>
+
+                        {/* Theme Palette Presets Bar */}
+                        <div className="flex flex-col gap-1.5 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl" id="qr_theme_presets_bar">
+                          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Palette Presets:</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-sans">Quick Theme</span>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-0.5">
+                            {[
+                              { name: "Classic", fg: "#000000", bg: "#ffffff" },
+                              { name: "Amber", fg: "#d97706", bg: "#020617" },
+                              { name: "Base Blue", fg: "#ffffff", bg: "#0052ff" },
+                              { name: "Matrix", fg: "#059669", bg: "#0f172a" },
+                              { name: "Cream", fg: "#1e293b", bg: "#fef3c7" },
+                              { name: "Inverse", fg: "#ffffff", bg: "#000000" },
+                            ].map((preset) => {
+                              const isActive =
+                                !isHighContrast &&
+                                qrFgColor.toLowerCase() === preset.fg.toLowerCase() &&
+                                qrBgColor.toLowerCase() === preset.bg.toLowerCase();
+
+                              return (
+                                <button
+                                  key={`preset_${preset.name}`}
+                                  onClick={() => {
+                                    setQrFgColor(preset.fg);
+                                    setQrBgColor(preset.bg);
+                                    setIsHighContrast(false);
+                                  }}
+                                  className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-mono transition-all cursor-pointer ${
+                                    isActive
+                                      ? "bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-sm"
+                                      : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                                  }`}
+                                  title={`Apply ${preset.name} Theme (FG: ${preset.fg}, BG: ${preset.bg})`}
+                                  id={`qr_preset_${preset.name.toLowerCase().replace(/\s+/g, "_")}`}
+                                >
+                                  <div className="flex items-center -space-x-1">
+                                    <span className="w-2.5 h-2.5 rounded-full border border-slate-600 shrink-0" style={{ backgroundColor: preset.fg }} />
+                                    <span className="w-2.5 h-2.5 rounded-full border border-slate-600 shrink-0" style={{ backgroundColor: preset.bg }} />
+                                  </div>
+                                  <span className="truncate">{preset.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Error Correction Level Dropdown Bar */}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_error_correction_bar">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                            <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Error Correction:</span>
+                          </div>
+                          <select
+                            value={qrErrorLevel}
+                            onChange={(e) => setQrErrorLevel(e.target.value as "L" | "M" | "Q" | "H")}
+                            className="bg-slate-950 border border-slate-700 hover:border-amber-500/50 text-amber-300 rounded-lg text-xs font-mono py-1 px-2 focus:outline-none focus:border-amber-500 cursor-pointer"
+                            id="qr_error_correction_select"
+                          >
+                            <option value="L">L - Low (7% recover, max density)</option>
+                            <option value="M">M - Medium (15% recover, balanced)</option>
+                            <option value="Q">Q - Quartile (25% recover, high)</option>
+                            <option value="H">H - High (30% recover, max reliability)</option>
+                          </select>
+                        </div>
+
+                        {/* Foreground Color Picker Bar */}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_fg_color_picker_bar">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                            <Palette className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Foreground:</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {/* Preset FG Swatches */}
+                            {[
+                              { name: "Black", hex: "#000000" },
+                              { name: "Amber", hex: "#d97706" },
+                              { name: "Emerald", hex: "#059669" },
+                              { name: "Indigo", hex: "#4f46e5" },
+                              { name: "Crimson", hex: "#dc2626" },
+                              { name: "White", hex: "#ffffff" },
+                            ].map((swatch) => (
+                              <button
+                                key={`fg_${swatch.hex}`}
+                                onClick={() => {
+                                  setQrFgColor(swatch.hex);
+                                  setIsHighContrast(false);
+                                }}
+                                className={`w-4 h-4 rounded-full transition-all border cursor-pointer ${
+                                  !isHighContrast && qrFgColor.toLowerCase() === swatch.hex.toLowerCase()
+                                    ? "scale-125 border-white ring-2 ring-amber-500/60 shadow-md"
+                                    : "border-slate-700 hover:scale-110 opacity-80 hover:opacity-100"
+                                }`}
+                                style={{ backgroundColor: swatch.hex }}
+                                title={`FG: ${swatch.name} (${swatch.hex})`}
+                                id={`qr_fg_swatch_${swatch.name.toLowerCase().replace(/\s+/g, "_")}`}
+                              />
+                            ))}
+                            {/* Custom FG Input */}
+                            <div className="relative flex items-center border-l border-slate-800 pl-1.5">
+                              <label className="relative flex items-center justify-center w-5 h-5 rounded-md bg-slate-800 border border-slate-700 hover:border-amber-500/50 cursor-pointer transition-all" title="Custom Foreground Color">
+                                <input
+                                  type="color"
+                                  value={qrFgColor}
+                                  onChange={(e) => {
+                                    setQrFgColor(e.target.value);
+                                    setIsHighContrast(false);
+                                  }}
+                                  className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                  id="qr_fg_custom_color_input"
+                                />
+                                <div className="w-3 h-3 rounded-full border border-slate-500" style={{ backgroundColor: isHighContrast ? "#000000" : qrFgColor }} />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Background Color Picker Bar */}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_bg_color_picker_bar">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                            <Palette className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Background:</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {/* Preset BG Swatches */}
+                            {[
+                              { name: "White", hex: "#ffffff" },
+                              { name: "Dark Slate", hex: "#0f172a" },
+                              { name: "Amber Cream", hex: "#fef3c7" },
+                              { name: "Pure Black", hex: "#000000" },
+                              { name: "Midnight", hex: "#020617" },
+                            ].map((swatch) => (
+                              <button
+                                key={`bg_${swatch.hex}`}
+                                onClick={() => {
+                                  setQrBgColor(swatch.hex);
+                                  setIsHighContrast(false);
+                                }}
+                                className={`w-4 h-4 rounded-full transition-all border cursor-pointer ${
+                                  !isHighContrast && qrBgColor.toLowerCase() === swatch.hex.toLowerCase()
+                                    ? "scale-125 border-white ring-2 ring-amber-500/60 shadow-md"
+                                    : "border-slate-700 hover:scale-110 opacity-80 hover:opacity-100"
+                                }`}
+                                style={{ backgroundColor: swatch.hex }}
+                                title={`BG: ${swatch.name} (${swatch.hex})`}
+                                id={`qr_bg_swatch_${swatch.name.toLowerCase().replace(/\s+/g, "_")}`}
+                              />
+                            ))}
+                            {/* Custom BG Input */}
+                            <div className="relative flex items-center border-l border-slate-800 pl-1.5">
+                              <label className="relative flex items-center justify-center w-5 h-5 rounded-md bg-slate-800 border border-slate-700 hover:border-amber-500/50 cursor-pointer transition-all" title="Custom Background Color">
+                                <input
+                                  type="color"
+                                  value={qrBgColor}
+                                  onChange={(e) => {
+                                    setQrBgColor(e.target.value);
+                                    setIsHighContrast(false);
+                                  }}
+                                  className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                  id="qr_bg_custom_color_input"
+                                />
+                                <div className="w-3 h-3 rounded-full border border-slate-500" style={{ backgroundColor: isHighContrast ? "#ffffff" : qrBgColor }} />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-400 text-center font-mono">
+                        {qrDataType === "protocol" && "Scan to read BRC-20 JSON inscription protocol payload"}
+                        {qrDataType === "txhash" && "Scan to open Bitcoin transaction URI reference"}
+                        {qrDataType === "full" && "Scan to read full inscription metadata record"}
+                      </p>
+                    </div>
+
+                    {/* Code Payload Preview */}
+                    <div className="flex flex-col gap-1.5" id="qr_payload_preview">
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono flex-wrap gap-2">
+                        <span className="flex items-center gap-1">
+                          <Code2 className="w-3.5 h-3.5 text-amber-500" />
+                          Encoded Content:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleCopyMinifiedJson}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 border border-purple-500/40 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer shadow-sm"
+                            id="btn_copy_minified_json"
+                            title="Copy minified single-line JSON string without whitespace"
+                          >
+                            {copiedMinifiedJson ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-300">Minified Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Code className="w-3 h-3 text-purple-300" />
+                                <span>Copy JSON (Minified)</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(getQrPayload(qrModalInscription, qrDataType));
+                              setCopiedQrData(true);
+                              setTimeout(() => setCopiedQrData(false), 2000);
+                            }}
+                            className="inline-flex items-center gap-1 text-slate-400 hover:text-white font-sans cursor-pointer text-[11px]"
+                            id="btn_copy_qr_payload"
+                          >
+                            {copiedQrData ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400 font-semibold">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy Raw</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <pre className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-[11px] font-mono text-amber-300/90 overflow-x-auto max-h-28 whitespace-pre-wrap break-all select-all" id="qr_raw_data_pre">
+                        {getQrPayload(qrModalInscription, qrDataType)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal Body: History Tab */}
+                {qrActiveTab === "history" && (
+                  <div className="p-6 flex flex-col gap-4 max-h-[480px] overflow-y-auto" id="qr_modal_history_view">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <History className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs font-bold text-white font-mono">
+                          Last 5 Generated QR Codes
+                        </span>
+                      </div>
+                      {qrHistory.length > 0 && (
+                        <button
+                          onClick={() => setQrHistory([])}
+                          className="text-[11px] text-rose-400 hover:text-rose-300 font-mono underline cursor-pointer"
+                          id="btn_clear_qr_history"
+                        >
+                          Clear History
+                        </button>
+                      )}
+                    </div>
+
+                    {qrHistory.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center p-8 bg-slate-950/60 border border-slate-800 rounded-xl text-center gap-2">
+                        <History className="w-8 h-8 text-slate-600 mb-1" />
+                        <p className="text-xs font-semibold text-slate-300">No QR Code History Yet</p>
+                        <p className="text-[11px] text-slate-500 max-w-xs font-mono">
+                          QR code payloads you view or customize will automatically be saved here (up to 5 recent items).
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {qrHistory.map((item, idx) => {
+                          const isCurrentActive =
+                            qrModalInscription?.id === item.inscriptionId && qrDataType === item.dataType;
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
+                                isCurrentActive
+                                  ? "bg-amber-950/30 border-amber-500/50 shadow-md"
+                                  : "bg-slate-950/80 border-slate-800 hover:border-slate-700"
+                              }`}
+                              id={`qr_history_item_${idx}`}
+                            >
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-white font-mono">
+                                    #{item.number} (${item.ticker.toUpperCase()})
+                                  </span>
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-amber-500/20 font-semibold">
+                                    {item.dataType === "protocol"
+                                      ? "BRC-20 Payload"
+                                      : item.dataType === "txhash"
+                                      ? "Bitcoin URI"
+                                      : "Full JSON"}
+                                  </span>
+                                  {isCurrentActive && (
+                                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                      Active
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono text-slate-500">
+                                  {item.timestamp}
+                                </span>
+                              </div>
+
+                              {/* Payload code snippet */}
+                              <pre className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg text-[10px] font-mono text-amber-200/90 overflow-x-auto max-h-20 whitespace-pre-wrap break-all select-all">
+                                {item.payload}
+                              </pre>
+
+                              {/* Actions */}
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-900 flex-wrap">
+                                <button
+                                  onClick={() => {
+                                    setQrModalInscription(item.inscription);
+                                    setQrDataType(item.dataType);
+                                    setQrActiveTab("generator");
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-[11px] font-bold font-mono transition-all cursor-pointer shadow-sm"
+                                  id={`btn_regenerate_qr_${idx}`}
+                                >
+                                  <QrCode className="w-3 h-3 text-slate-950" />
+                                  <span>Regenerate / Load QR</span>
+                                </button>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      let minified = item.payload;
+                                      try {
+                                        minified = JSON.stringify(JSON.parse(item.payload));
+                                      } catch (e) {
+                                        minified = item.payload.replace(/\s+/g, "");
+                                      }
+                                      navigator.clipboard.writeText(minified);
+                                      setCopiedHistoryId(`${item.id}-min`);
+                                      setTimeout(() => setCopiedHistoryId(null), 2000);
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[10px] font-mono text-purple-300 hover:text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 px-2 py-1 rounded border border-purple-500/30 transition-all cursor-pointer"
+                                    id={`btn_copy_minified_history_${idx}`}
+                                  >
+                                    {copiedHistoryId === `${item.id}-min` ? (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span className="text-emerald-300">Minified Copied</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Code className="w-3 h-3" />
+                                        <span>Copy Minified</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item.payload);
+                                      setCopiedHistoryId(`${item.id}-raw`);
+                                      setTimeout(() => setCopiedHistoryId(null), 2000);
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 transition-all cursor-pointer"
+                                    id={`btn_copy_raw_history_${idx}`}
+                                  >
+                                    {copiedHistoryId === `${item.id}-raw` ? (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span className="text-emerald-400">Copied!</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3 h-3" />
+                                        <span>Copy Raw</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Modal Footer Actions */}
                 <div className="px-6 py-4 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between gap-3 flex-wrap" id="qr_modal_footer">

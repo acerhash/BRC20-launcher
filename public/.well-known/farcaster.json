@@ -1,0 +1,26 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "BRC-20 Explorer & Ledger",
+    "homeUrl": "https://brc20-explorer.app",
+    "iconUrl": "https://brc20-explorer.app/icon.png",
+    "splashImageUrl": "https://brc20-explorer.app/splash.png",
+    "splashBackgroundColor": "#020617",
+    "webhookUrl": "https://brc20-explorer.app/api/webhook",
+    "subtitle": "BRC-20 & Base B20 Explorer",
+    "description": "Explore, index, and manage BRC-20 ordinal inscriptions, Base B20 tokens, and order reconciliations.",
+    "primaryCategory": "finance",
+    "tags": ["brc20", "bitcoin", "ordinals", "baseapp", "miniapp", "farcaster"],
+    "heroImageUrl": "https://brc20-explorer.app/hero.png",
+    "tagline": "Index BRC-20 & B20 Instantly",
+    "ogTitle": "BRC-20 Explorer & Ledger",
+    "ogDescription": "Track BRC-20 inscriptions and Base B20 payment reconciliations on Base.",
+    "ogImageUrl": "https://brc20-explorer.app/hero.png",
+    "noindex": false
+  }
+}
