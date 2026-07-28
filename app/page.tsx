@@ -215,6 +215,111 @@ interface B20OrderPayment {
   timestamp: string;
 }
 
+// Base App DEX Trading Interfaces & Mock Data
+interface BaseTradeItem {
+  id: string;
+  txHash: string;
+  payToken: string;
+  receiveToken: string;
+  payAmount: number;
+  receiveAmount: number;
+  rate: number;
+  route: string;
+  paymasterSponsored: boolean;
+  timestamp: string;
+  status: "Confirmed" | "Pending" | "Failed";
+}
+
+interface BaseLimitOrder {
+  id: string;
+  side: "buy" | "sell";
+  token: string;
+  targetPriceEth: number;
+  amount: number;
+  totalEth: number;
+  filled: number;
+  status: "Open" | "Filled" | "Cancelled";
+  timestamp: string;
+}
+
+const BASE_TOKEN_PRICES: Record<string, { usd: number; name: string; symbol: string; icon: string }> = {
+  ETH: { usd: 3250.0, name: "Ethereum (Base)", symbol: "ETH", icon: "Ξ" },
+  USDC: { usd: 1.0, name: "USD Coin (Base)", symbol: "USDC", icon: "$" },
+  cbBTC: { usd: 64500.0, name: "Coinbase Wrapped BTC", symbol: "cbBTC", icon: "₿" },
+  bORDI: { usd: 28.5, name: "Base Wrapped ORDI", symbol: "bORDI", icon: "🟧" },
+  bSATS: { usd: 0.00028, name: "Base Wrapped SATS", symbol: "bSATS", icon: "⚡" },
+  bPEPE: { usd: 0.0000085, name: "Base B20 PEPE", symbol: "bPEPE", icon: "🐸" },
+  bBASE: { usd: 1.45, name: "Base B20 Token", symbol: "bBASE", icon: "🔵" },
+  CUBEY: { usd: 0.85, name: "Cubey Companion", symbol: "CUBEY", icon: "🧊" }
+};
+
+const INITIAL_BASE_TRADES: BaseTradeItem[] = [
+  {
+    id: "trade-101",
+    txHash: "0x8f3a9d2c1e4b5f6a7b8c9d0e1f2a3b4c5d6e7f8a",
+    payToken: "ETH",
+    receiveToken: "bORDI",
+    payAmount: 0.1,
+    receiveAmount: 11.4,
+    rate: 114.0,
+    route: "Aerodrome Slipstream (ETH -> cbBTC -> bORDI)",
+    paymasterSponsored: true,
+    timestamp: "2026-07-27 21:15:02",
+    status: "Confirmed"
+  },
+  {
+    id: "trade-102",
+    txHash: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+    payToken: "USDC",
+    receiveToken: "bSATS",
+    payAmount: 250,
+    receiveAmount: 892857,
+    rate: 3571.42,
+    route: "Base Swap Direct Pool",
+    paymasterSponsored: true,
+    timestamp: "2026-07-27 19:42:18",
+    status: "Confirmed"
+  },
+  {
+    id: "trade-103",
+    txHash: "0x5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+    payToken: "cbBTC",
+    receiveToken: "bPEPE",
+    payAmount: 0.005,
+    receiveAmount: 37941176,
+    rate: 7588235200,
+    route: "Uniswap v3 Base (cbBTC -> USDC -> bPEPE)",
+    paymasterSponsored: true,
+    timestamp: "2026-07-27 16:08:55",
+    status: "Confirmed"
+  }
+];
+
+const INITIAL_LIMIT_ORDERS: BaseLimitOrder[] = [
+  {
+    id: "limit-1",
+    side: "buy",
+    token: "bORDI",
+    targetPriceEth: 0.0085,
+    amount: 50,
+    totalEth: 0.425,
+    filled: 0,
+    status: "Open",
+    timestamp: "2026-07-27 22:00:10"
+  },
+  {
+    id: "limit-2",
+    side: "sell",
+    token: "bPEPE",
+    targetPriceEth: 0.000000003,
+    amount: 10000000,
+    totalEth: 0.03,
+    filled: 40,
+    status: "Open",
+    timestamp: "2026-07-27 20:30:15"
+  }
+];
+
 // Initial Base B20 Tokens Data
 const INITIAL_B20_TOKENS: B20Token[] = [
   {
@@ -625,7 +730,7 @@ const INITIAL_LEDGER: LedgerBalance[] = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments" | "airdrop" | "notifications">("tokens");
+  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments" | "airdrop" | "notifications" | "base_trading">("tokens");
   const [searchQuery, setSearchQuery] = useState("");
   const [mintFilter, setMintFilter] = useState<"all" | "completed" | "inprogress">("all");
   const [themeMode, setThemeMode] = useState<"slate" | "oled" | "cyber" | "emerald" | "light">("slate");
@@ -943,6 +1048,134 @@ export default function Home() {
     } finally {
       setNotifSending(false);
     }
+  };
+
+  // Base DEX Trading Suite States & Handlers
+  const [tradingPayToken, setTradingPayToken] = useState<string>("ETH");
+  const [tradingReceiveToken, setTradingReceiveToken] = useState<string>("bORDI");
+  const [tradingPayAmount, setTradingPayAmount] = useState<string>("0.05");
+  const [tradingSlippage, setTradingSlippage] = useState<number>(0.5);
+  const [tradingUsePaymaster, setTradingUsePaymaster] = useState<boolean>(true);
+  const [tradingSubTab, setTradingSubTab] = useState<"swap" | "limit" | "orderbook" | "chart" | "wallet">("swap");
+  const [tradingLimitPrice, setTradingLimitPrice] = useState<string>("0.0088");
+  const [tradingLimitSide, setTradingLimitSide] = useState<"buy" | "sell">("buy");
+  const [tradingLimitAmount, setTradingLimitAmount] = useState<string>("100");
+  const [tradingLimitOrders, setTradingLimitOrders] = useState<BaseLimitOrder[]>(INITIAL_LIMIT_ORDERS);
+  const [tradingHistory, setTradingHistory] = useState<BaseTradeItem[]>(INITIAL_BASE_TRADES);
+  const [isExecutingTrade, setIsExecutingTrade] = useState(false);
+  const [tradeStep, setTradeStep] = useState<number>(0);
+  const [tradeTxHash, setTradeTxHash] = useState<string>("");
+  const [tradeToast, setTradeToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [isQuickTradeModalOpen, setIsQuickTradeModalOpen] = useState(false);
+  const [quickTradeToken, setQuickTradeToken] = useState<string>("bORDI");
+
+  // Swap Execution Handler
+  const handleExecuteSwap = async (payTok?: string, recTok?: string, payAmtStr?: string) => {
+    const pay = payTok || tradingPayToken;
+    const rec = recTok || tradingReceiveToken;
+    const amtStr = payAmtStr || tradingPayAmount;
+    const amt = parseFloat(amtStr);
+
+    if (isNaN(amt) || amt <= 0) {
+      setTradeToast({ message: "Please enter a valid swap amount.", type: "error" });
+      return;
+    }
+
+    if (pay === rec) {
+      setTradeToast({ message: "Pay token and Receive token cannot be identical.", type: "error" });
+      return;
+    }
+
+    setIsExecutingTrade(true);
+    setTradeStep(1); // Estimating liquidity route
+
+    await new Promise((r) => setTimeout(r, 500));
+    setTradeStep(2); // Requesting Base Smart Wallet signature (EIP-712)
+
+    await new Promise((r) => setTimeout(r, 600));
+    setTradeStep(3); // Submitting to Base Paymaster (Gasless)
+
+    await new Promise((r) => setTimeout(r, 700));
+    setTradeStep(4); // Confirmed in Base Block
+
+    const payUsd = BASE_TOKEN_PRICES[pay]?.usd || 1;
+    const recUsd = BASE_TOKEN_PRICES[rec]?.usd || 1;
+    const rate = payUsd / recUsd;
+    const recAmt = Math.round(amt * rate * 1000000) / 1000000;
+    const txHash = "0x" + Array.from({ length: 20 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+    const nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+    const newTrade: BaseTradeItem = {
+      id: `trade-${Date.now().toString().slice(-5)}`,
+      txHash,
+      payToken: pay,
+      receiveToken: rec,
+      payAmount: amt,
+      receiveAmount: recAmt,
+      rate: Math.round(rate * 100) / 100,
+      route: "Aerodrome Slipstream (Base Paymaster Sponsored)",
+      paymasterSponsored: tradingUsePaymaster,
+      timestamp: nowStr,
+      status: "Confirmed"
+    };
+
+    setTradingHistory((prev) => [newTrade, ...prev]);
+    setIsExecutingTrade(false);
+    setTradeStep(0);
+    setTradeTxHash(txHash);
+    setTradeToast({
+      message: `🎉 Swap Executed! Swapped ${amt} ${pay} for ${recAmt.toLocaleString()} ${rec} on Base L2!`,
+      type: "success"
+    });
+
+    if (isQuickTradeModalOpen) {
+      setTimeout(() => setIsQuickTradeModalOpen(false), 1500);
+    }
+  };
+
+  const handlePlaceLimitOrder = () => {
+    const amt = parseFloat(tradingLimitAmount);
+    const price = parseFloat(tradingLimitPrice);
+    if (isNaN(amt) || amt <= 0 || isNaN(price) || price <= 0) {
+      setTradeToast({ message: "Please enter valid limit price and order amount.", type: "error" });
+      return;
+    }
+
+    const totalEth = Math.round(amt * price * 10000) / 10000;
+    const nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+    const newOrder: BaseLimitOrder = {
+      id: `limit-${Date.now().toString().slice(-4)}`,
+      side: tradingLimitSide,
+      token: tradingReceiveToken,
+      targetPriceEth: price,
+      amount: amt,
+      totalEth,
+      filled: 0,
+      status: "Open",
+      timestamp: nowStr
+    };
+
+    setTradingLimitOrders((prev) => [newOrder, ...prev]);
+    setTradeToast({
+      message: `✅ Limit ${tradingLimitSide.toUpperCase()} Order placed for ${amt} ${tradingReceiveToken} @ ${price} ETH!`,
+      type: "success"
+    });
+  };
+
+  const handleCancelLimitOrder = (orderId: string) => {
+    setTradingLimitOrders((prev) => prev.filter((o) => o.id !== orderId));
+    setTradeToast({ message: "Limit order cancelled.", type: "success" });
+  };
+
+  const handleOpenQuickTrade = (symbol: string) => {
+    const uppercaseSymbol = symbol.toUpperCase();
+    const matched = Object.keys(BASE_TOKEN_PRICES).find(
+      (k) => k.toUpperCase() === uppercaseSymbol || k.toUpperCase() === `B${uppercaseSymbol}` || uppercaseSymbol.includes(k.toUpperCase())
+    );
+    const recTok = matched || "bORDI";
+    setTradingReceiveToken(recTok);
+    setQuickTradeToken(recTok);
+    setIsQuickTradeModalOpen(true);
   };
 
   // B20 Launchpad Form States
@@ -2214,6 +2447,21 @@ export default function Home() {
                 <Bell className="w-4 h-4 text-amber-300" />
                 Base Notifications
               </button>
+              <button
+                onClick={() => setActiveTab("base_trading")}
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all relative ${
+                  activeTab === "base_trading"
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold shadow-lg shadow-cyan-500/20"
+                    : "text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/40"
+                }`}
+                id="tab_btn_base_trading"
+              >
+                <Zap className="w-4 h-4 text-cyan-300" />
+                Base Swap & Trading
+                <span className="text-[9px] px-1.5 py-0.2 bg-cyan-400 text-slate-950 rounded-full font-bold uppercase tracking-wider">
+                  HOT
+                </span>
+              </button>
             </div>
 
             {/* Render conditional actions inside tab controls (like search or exports) */}
@@ -2384,6 +2632,17 @@ export default function Home() {
                               <span className="text-[10px] text-slate-500 block uppercase">Transactions</span>
                               <span className="font-mono text-white font-semibold">{t.transactions.toLocaleString()}</span>
                             </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-800/60">
+                            <button
+                              onClick={() => handleOpenQuickTrade(t.ticker)}
+                              className="w-full py-2 px-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                              id={`btn_trade_card_${t.ticker}`}
+                            >
+                              <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                              Swap & Trade ${t.ticker} on Base
+                            </button>
                           </div>
                         </div>
                       );
@@ -2933,14 +3192,21 @@ export default function Home() {
 
                         <div className="flex items-center gap-2 pt-1">
                           <button
+                            onClick={() => handleOpenQuickTrade(token.symbol)}
+                            className="flex-1 py-2 px-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                            Trade on Base
+                          </button>
+                          <button
                             onClick={() => {
                               setPayTokenAddress(token.contractAddress);
                               setActiveTab("b20_payments");
                             }}
-                            className="flex-1 py-2 px-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                            className="py-2 px-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                           >
                             <Receipt className="w-3.5 h-3.5" />
-                            Accept Payments
+                            Payments
                           </button>
                           <button
                             onClick={() => handleTogglePauseB20Token(token.contractAddress)}
@@ -4068,6 +4334,633 @@ export default function Home() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Base L2 Swap & Trading Desk Tab */}
+            {activeTab === "base_trading" && (
+              <div className="flex flex-col gap-6" id="base_trading_container">
+                {/* Header Banner */}
+                <div className="bg-gradient-to-br from-blue-950/80 via-slate-900 to-cyan-950/80 border border-cyan-500/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden" id="base_trading_header">
+                  <div className="absolute top-0 right-0 -mt-6 -mr-6 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="p-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-slate-950 font-bold rounded-xl shadow-lg">
+                          <Zap className="w-5 h-5 text-white" />
+                        </span>
+                        <div>
+                          <h2 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                            Base L2 Onchain Trading Desk & AMM Swap
+                            <span className="text-[10px] px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded-full font-mono font-bold uppercase">
+                              Base Mainnet (8453)
+                            </span>
+                          </h2>
+                          <p className="text-xs text-slate-300 font-mono mt-0.5">
+                            Instant Token Swaps • Aerodrome & Base Swap Routers • Gasless Paymaster (EIP-5792)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-left font-mono">
+                        <div className="text-[10px] text-slate-400 uppercase">Base L2 Gas Price</div>
+                        <div className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                          0.002 gwei (~$0.0001)
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950/80 border border-cyan-500/30 rounded-xl text-left font-mono">
+                        <div className="text-[10px] text-cyan-400/80 uppercase">Base Paymaster</div>
+                        <div className="text-xs font-bold text-cyan-300 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                          100% Free Sponsored
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sub Navigation Bar */}
+                  <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto" id="trading_subtabs">
+                    <button
+                      onClick={() => setTradingSubTab("swap")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                        tradingSubTab === "swap"
+                          ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                          : "bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800"
+                      }`}
+                      id="subtab_swap"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      Swap Desk
+                    </button>
+                    <button
+                      onClick={() => setTradingSubTab("limit")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                        tradingSubTab === "limit"
+                          ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                          : "bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800"
+                      }`}
+                      id="subtab_limit"
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5" />
+                      Limit Orders ({tradingLimitOrders.filter((o) => o.status === "Open").length})
+                    </button>
+                    <button
+                      onClick={() => setTradingSubTab("orderbook")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                        tradingSubTab === "orderbook"
+                          ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                          : "bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800"
+                      }`}
+                      id="subtab_orderbook"
+                    >
+                      <Grid className="w-3.5 h-3.5" />
+                      Live Orderbook
+                    </button>
+                    <button
+                      onClick={() => setTradingSubTab("chart")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                        tradingSubTab === "chart"
+                          ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                          : "bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800"
+                      }`}
+                      id="subtab_chart"
+                    >
+                      <TrendingUp className="w-3.5 h-3.5" />
+                      Pair Analytics & Chart
+                    </button>
+                    <button
+                      onClick={() => setTradingSubTab("wallet")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                        tradingSubTab === "wallet"
+                          ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                          : "bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800"
+                      }`}
+                      id="subtab_wallet"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      Smart Wallet & Paymaster
+                    </button>
+                  </div>
+                </div>
+
+                {/* Toast Notification */}
+                {tradeToast && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-3.5 rounded-xl text-xs font-mono font-semibold flex items-center justify-between border shadow-xl ${
+                      tradeToast.type === "success"
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                        : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{tradeToast.message}</span>
+                    </div>
+                    {tradeTxHash && (
+                      <button
+                        onClick={() => {
+                          const castText = `Just swapped on Base L2! Check out my txn: https://basescan.org/tx/${tradeTxHash}`;
+                          window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`, "_blank");
+                        }}
+                        className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 rounded text-[10px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Share2 className="w-3 h-3" />
+                        Share to Base Feed
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Sub Tab Content 1: Swap Desk */}
+                {tradingSubTab === "swap" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="swap_desk_view">
+                    {/* Swap Form Card (lg:col-span-5) */}
+                    <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4" id="swap_form_card">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-cyan-400" />
+                          <h3 className="font-bold text-white text-sm">Base Instant AMM Router</h3>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded">
+                          Slippage: {tradingSlippage}%
+                        </div>
+                      </div>
+
+                      {/* Pay Token Section */}
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col gap-2" id="pay_token_box">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>You Pay</span>
+                          <span className="font-mono">
+                            Balance: 0.45 ETH (${(0.45 * (BASE_TOKEN_PRICES[tradingPayToken]?.usd || 3250)).toLocaleString()})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            value={tradingPayAmount}
+                            onChange={(e) => setTradingPayAmount(e.target.value)}
+                            className="w-full bg-transparent text-2xl font-mono font-bold text-white focus:outline-none"
+                            placeholder="0.00"
+                            id="pay_amount_input"
+                          />
+                          <select
+                            value={tradingPayToken}
+                            onChange={(e) => setTradingPayToken(e.target.value)}
+                            className="bg-slate-900 border border-slate-700 text-white font-mono font-bold text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 cursor-pointer shrink-0"
+                            id="pay_token_select"
+                          >
+                            {Object.keys(BASE_TOKEN_PRICES).map((tok) => (
+                              <option key={tok} value={tok}>
+                                {BASE_TOKEN_PRICES[tok].icon} {tok}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px] font-mono text-slate-500">
+                          <span>≈ ${(parseFloat(tradingPayAmount || "0") * (BASE_TOKEN_PRICES[tradingPayToken]?.usd || 1)).toLocaleString()} USD</span>
+                          <div className="flex items-center gap-1">
+                            {["0.01", "0.05", "0.1", "0.5"].map((preset) => (
+                              <button
+                                key={preset}
+                                onClick={() => setTradingPayAmount(preset)}
+                                className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded border border-slate-800 cursor-pointer"
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Swap Direction Reverse Button */}
+                      <div className="flex justify-center -my-2 relative z-10">
+                        <button
+                          onClick={() => {
+                            const temp = tradingPayToken;
+                            setTradingPayToken(tradingReceiveToken);
+                            setTradingReceiveToken(temp);
+                          }}
+                          className="p-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded-full shadow-lg transition-all transform hover:rotate-180 cursor-pointer"
+                          title="Reverse Swap Direction"
+                          id="reverse_swap_btn"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Receive Token Section */}
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col gap-2" id="receive_token_box">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>You Receive (Estimated)</span>
+                          <span className="font-mono">
+                            Rate: 1 {tradingPayToken} = {(
+                              (BASE_TOKEN_PRICES[tradingPayToken]?.usd || 1) / (BASE_TOKEN_PRICES[tradingReceiveToken]?.usd || 1)
+                            ).toLocaleString()} {tradingReceiveToken}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-full text-2xl font-mono font-bold text-cyan-300 truncate">
+                            {(
+                              (parseFloat(tradingPayAmount || "0") * (BASE_TOKEN_PRICES[tradingPayToken]?.usd || 1)) /
+                              (BASE_TOKEN_PRICES[tradingReceiveToken]?.usd || 1)
+                            ).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                          </div>
+                          <select
+                            value={tradingReceiveToken}
+                            onChange={(e) => setTradingReceiveToken(e.target.value)}
+                            className="bg-slate-900 border border-slate-700 text-white font-mono font-bold text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 cursor-pointer shrink-0"
+                            id="receive_token_select"
+                          >
+                            {Object.keys(BASE_TOKEN_PRICES).map((tok) => (
+                              <option key={tok} value={tok}>
+                                {BASE_TOKEN_PRICES[tok].icon} {tok}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px] font-mono text-slate-500">
+                          <span>
+                            ≈ ${(
+                              parseFloat(tradingPayAmount || "0") * (BASE_TOKEN_PRICES[tradingPayToken]?.usd || 1)
+                            ).toLocaleString()} USD
+                          </span>
+                          <span className="text-emerald-400">Price Impact &lt; 0.05%</span>
+                        </div>
+                      </div>
+
+                      {/* Base Paymaster Gas Sponsor Toggle */}
+                      <div className="p-3 bg-cyan-950/30 border border-cyan-500/20 rounded-xl flex items-center justify-between" id="paymaster_toggle_box">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white">Base Paymaster Gasless Trade</span>
+                            <span className="text-[10px] text-slate-400 font-mono">EIP-5792 Sponsored (0 ETH gas fee)</span>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={tradingUsePaymaster}
+                          onChange={(e) => setTradingUsePaymaster(e.target.checked)}
+                          className="w-4 h-4 accent-cyan-500 rounded cursor-pointer"
+                          id="chk_use_paymaster"
+                        />
+                      </div>
+
+                      {/* Execution Progress Stepper */}
+                      {isExecutingTrade && (
+                        <div className="p-3.5 bg-slate-950 border border-cyan-500/40 rounded-xl flex flex-col gap-2 font-mono text-xs" id="trade_stepper">
+                          <div className="flex items-center justify-between text-cyan-300 font-bold">
+                            <span>Executing Base L2 Swap...</span>
+                            <span>Step {tradeStep}/4</span>
+                          </div>
+                          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <motion.div
+                              className="bg-cyan-400 h-full"
+                              initial={{ width: "0%" }}
+                              animate={{ width: `${(tradeStep / 4) * 100}%` }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-400">
+                            {tradeStep === 1 && "🔍 Step 1: Querying Aerodrome & Base Swap AMM pools..."}
+                            {tradeStep === 2 && "✍️ Step 2: Requesting EIP-712 Smart Wallet authorization..."}
+                            {tradeStep === 3 && "🚀 Step 3: Submitting user call bundle to Base Paymaster..."}
+                            {tradeStep === 4 && "✅ Step 4: Transaction confirmed in Base block!"}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Swap Button */}
+                      <button
+                        onClick={() => handleExecuteSwap()}
+                        disabled={isExecutingTrade}
+                        className="w-full py-3.5 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        id="btn_execute_swap"
+                      >
+                        {isExecutingTrade ? (
+                          <>
+                            <Activity className="w-4 h-4 animate-spin" />
+                            Swapping on Base L2...
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-4 h-4" />
+                            Swap {tradingPayToken} for {tradingReceiveToken} (Base L2)
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Trade History & Live Activity (lg:col-span-7) */}
+                    <div className="lg:col-span-7 flex flex-col gap-4" id="swap_history_panel">
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <History className="w-4 h-4 text-cyan-400" />
+                            <h3 className="font-bold text-white text-sm">Recent Base Swaps</h3>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                            Total Swaps: {tradingHistory.length}
+                          </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse" id="swap_history_table">
+                            <thead>
+                              <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-mono bg-slate-950/40">
+                                <th className="py-3 px-4">Timestamp</th>
+                                <th className="py-3 px-4">Pay & Receive</th>
+                                <th className="py-3 px-4">Route</th>
+                                <th className="py-3 px-4 text-right">Gas</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
+                              {tradingHistory.map((item) => (
+                                <tr key={item.id} className="hover:bg-slate-950/30 transition-all">
+                                  <td className="py-3 px-4 text-[11px] text-slate-400 whitespace-nowrap">{item.timestamp}</td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col">
+                                      <span className="font-bold text-white">
+                                        {item.payAmount} {item.payToken} → {item.receiveAmount.toLocaleString()} {item.receiveToken}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500">
+                                        Rate: 1 {item.payToken} = {item.rate.toLocaleString()} {item.receiveToken}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-[11px] text-slate-400 line-clamp-1">{item.route}</td>
+                                  <td className="py-3 px-4 text-right">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded font-bold">
+                                      Free (Paymaster)
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub Tab Content 2: Limit Orders */}
+                {tradingSubTab === "limit" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="limit_orders_view">
+                    <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                          <ArrowUpDown className="w-4 h-4 text-cyan-400" />
+                          Place Base Limit Order
+                        </h3>
+                        <div className="flex items-center p-0.5 bg-slate-950 rounded-lg border border-slate-800">
+                          <button
+                            onClick={() => setTradingLimitSide("buy")}
+                            className={`px-3 py-1 rounded text-xs font-bold font-mono transition-all ${
+                              tradingLimitSide === "buy" ? "bg-emerald-500 text-slate-950" : "text-slate-400"
+                            }`}
+                          >
+                            BUY
+                          </button>
+                          <button
+                            onClick={() => setTradingLimitSide("sell")}
+                            className={`px-3 py-1 rounded text-xs font-bold font-mono transition-all ${
+                              tradingLimitSide === "sell" ? "bg-rose-500 text-white" : "text-slate-400"
+                            }`}
+                          >
+                            SELL
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3 font-mono text-xs">
+                        <div>
+                          <label className="text-slate-400 text-[10px] uppercase block mb-1">Select Token</label>
+                          <select
+                            value={tradingReceiveToken}
+                            onChange={(e) => setTradingReceiveToken(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 text-white p-2.5 rounded-xl focus:outline-none focus:border-cyan-500 font-bold"
+                          >
+                            {Object.keys(BASE_TOKEN_PRICES).map((tok) => (
+                              <option key={tok} value={tok}>
+                                {BASE_TOKEN_PRICES[tok].name} (${tok})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 text-[10px] uppercase block mb-1">Target Price (in ETH)</label>
+                          <input
+                            type="number"
+                            value={tradingLimitPrice}
+                            onChange={(e) => setTradingLimitPrice(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 text-white p-2.5 rounded-xl font-bold focus:outline-none focus:border-cyan-500"
+                            placeholder="0.0085"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 text-[10px] uppercase block mb-1">Amount</label>
+                          <input
+                            type="number"
+                            value={tradingLimitAmount}
+                            onChange={(e) => setTradingLimitAmount(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 text-white p-2.5 rounded-xl font-bold focus:outline-none focus:border-cyan-500"
+                            placeholder="100"
+                          />
+                        </div>
+
+                        <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                          <span className="text-slate-400">Total Order Value:</span>
+                          <span className="font-bold text-cyan-300">
+                            {(parseFloat(tradingLimitAmount || "0") * parseFloat(tradingLimitPrice || "0")).toFixed(4)} ETH
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={handlePlaceLimitOrder}
+                          className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold rounded-xl transition-all cursor-pointer shadow-lg shadow-cyan-500/20"
+                        >
+                          Submit Limit Order on Base
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                      <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <h3 className="font-bold text-white text-sm">Active Limit Orders</h3>
+                        <span className="text-xs font-mono text-slate-400">Total: {tradingLimitOrders.length}</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse" id="limit_orders_table">
+                          <thead>
+                            <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-mono bg-slate-950/40">
+                              <th className="py-3 px-4">Side & Token</th>
+                              <th className="py-3 px-4">Target Price</th>
+                              <th className="py-3 px-4">Amount</th>
+                              <th className="py-3 px-4">Status</th>
+                              <th className="py-3 px-4 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
+                            {tradingLimitOrders.map((ord) => (
+                              <tr key={ord.id} className="hover:bg-slate-950/30">
+                                <td className="py-3 px-4">
+                                  <span
+                                    className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase mr-2 ${
+                                      ord.side === "buy" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+                                    }`}
+                                  >
+                                    {ord.side}
+                                  </span>
+                                  <span className="font-bold text-white">{ord.token}</span>
+                                </td>
+                                <td className="py-3 px-4">{ord.targetPriceEth} ETH</td>
+                                <td className="py-3 px-4">{ord.amount.toLocaleString()}</td>
+                                <td className="py-3 px-4">
+                                  <span className="text-cyan-400 font-bold">{ord.status}</span>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <button
+                                    onClick={() => handleCancelLimitOrder(ord.id)}
+                                    className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 rounded text-[10px] cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub Tab Content 3: Live Orderbook */}
+                {tradingSubTab === "orderbook" && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Grid className="w-4 h-4 text-cyan-400" />
+                        <h3 className="font-bold text-white text-sm">Real-time Base Orderbook Depth</h3>
+                      </div>
+                      <span className="text-xs font-mono text-emerald-400">Live Spread: 0.02%</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
+                      {/* Asks (Sells) */}
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                        <h4 className="text-rose-400 font-bold mb-3 text-xs uppercase flex items-center justify-between">
+                          <span>Asks (Sell Orders)</span>
+                          <span>Price (ETH)</span>
+                        </h4>
+                        <div className="flex flex-col gap-1.5">
+                          {[
+                            { price: 0.00892, qty: 1520, fill: 80 },
+                            { price: 0.00888, qty: 940, fill: 50 },
+                            { price: 0.00885, qty: 450, fill: 25 }
+                          ].map((ask, idx) => (
+                            <div key={idx} className="relative p-2 rounded bg-rose-500/5 flex items-center justify-between">
+                              <div className="absolute left-0 top-0 bottom-0 bg-rose-500/10 rounded" style={{ width: `${ask.fill}%` }} />
+                              <span className="text-slate-300 relative z-10">{ask.qty} $bORDI</span>
+                              <span className="text-rose-400 font-bold relative z-10">{ask.price}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Bids (Buys) */}
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                        <h4 className="text-emerald-400 font-bold mb-3 text-xs uppercase flex items-center justify-between">
+                          <span>Bids (Buy Orders)</span>
+                          <span>Price (ETH)</span>
+                        </h4>
+                        <div className="flex flex-col gap-1.5">
+                          {[
+                            { price: 0.00875, qty: 850, fill: 40 },
+                            { price: 0.00870, qty: 1890, fill: 90 },
+                            { price: 0.00865, qty: 2400, fill: 100 }
+                          ].map((bid, idx) => (
+                            <div key={idx} className="relative p-2 rounded bg-emerald-500/5 flex items-center justify-between">
+                              <div className="absolute right-0 top-0 bottom-0 bg-emerald-500/10 rounded" style={{ width: `${bid.fill}%` }} />
+                              <span className="text-emerald-400 font-bold relative z-10">{bid.price}</span>
+                              <span className="text-slate-300 relative z-10">{bid.qty} $bORDI</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub Tab Content 4: Pair Chart */}
+                {tradingSubTab === "chart" && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-cyan-400" />
+                        <h3 className="font-bold text-white text-sm">bORDI / ETH 24h Price Action</h3>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
+                        <span>24h High: $31.20</span>
+                        <span>24h Low: $26.40</span>
+                        <span className="text-emerald-400 font-bold">+8.4%</span>
+                      </div>
+                    </div>
+                    <div className="h-64 w-full bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-center">
+                      <Sparkline data={[{ value: 26.4 }, { value: 27.1 }, { value: 26.8 }, { value: 28.5 }, { value: 29.2 }, { value: 31.2 }]} color="#06b6d4" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub Tab Content 5: Smart Wallet & Paymaster */}
+                {tradingSubTab === "wallet" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <Wallet className="w-4 h-4 text-cyan-400" />
+                        Base Smart Wallet Status
+                      </h3>
+                      <div className="flex flex-col gap-2 font-mono text-xs">
+                        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                          <span className="text-slate-400">Custody Address:</span>
+                          <span className="text-cyan-300 font-bold truncate max-w-[180px]">
+                            {farcasterUser?.custodyAddress || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"}
+                          </span>
+                        </div>
+                        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                          <span className="text-slate-400">Connected FID:</span>
+                          <span className="text-white font-bold">{farcasterUser?.fid || 9152}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+                        Base Paymaster Gas Credits
+                      </h3>
+                      <div className="p-4 bg-cyan-950/40 border border-cyan-500/30 rounded-xl flex flex-col gap-2 font-mono text-xs">
+                        <div className="flex justify-between items-center text-cyan-300 font-bold">
+                          <span>Free Sponsored Txns Remaining:</span>
+                          <span className="text-sm">100 / 100</span>
+                        </div>
+                        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                          <div className="bg-cyan-400 h-full w-full" />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Total Gas Fees Saved on Base L2: <span className="text-emerald-400 font-bold">0.0142 ETH (~$46.15 USD)</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
