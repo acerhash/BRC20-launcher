@@ -51,7 +51,14 @@ import {
   User,
   LogOut,
   AtSign,
-  Contrast
+  Contrast,
+  RotateCcw,
+  Grid,
+  CircleDot,
+  Cpu,
+  Square,
+  Disc,
+  LayoutGrid
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -1144,6 +1151,7 @@ export default function Home() {
   const [qrFgColor, setQrFgColor] = useState("#000000");
   const [qrBgColor, setQrBgColor] = useState("#ffffff");
   const [isHighContrast, setIsHighContrast] = useState(false);
+  const [qrPattern, setQrPattern] = useState<"standard" | "dots" | "rounded" | "cyber" | "circuit" | "mesh">("standard");
   const [qrErrorLevel, setQrErrorLevel] = useState<"L" | "M" | "Q" | "H">("H");
   const [copiedQrData, setCopiedQrData] = useState(false);
   const [copiedMinifiedJson, setCopiedMinifiedJson] = useState(false);
@@ -4152,10 +4160,24 @@ export default function Home() {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.2, ease: "easeOut" }}
-                          className="p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all"
+                          className="p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all relative overflow-hidden"
                           style={{ backgroundColor: isHighContrast ? "#ffffff" : qrBgColor }}
                           id="qr_canvas_wrapper"
                         >
+                          {/* Geometric Pattern & Dot-Matrix Density Overlay Layers */}
+                          {qrPattern === "cyber" && (
+                            <div className="absolute inset-0 pointer-events-none opacity-25 bg-[radial-gradient(#d97706_1.5px,transparent_1.5px)] [background-size:8px_8px]" />
+                          )}
+                          {qrPattern === "circuit" && (
+                            <div className="absolute inset-0 pointer-events-none opacity-20 border border-amber-500/40 bg-[linear-gradient(to_right,#d97706_1px,transparent_1px),linear-gradient(to_bottom,#d97706_1px,transparent_1px)] [background-size:12px_12px]" />
+                          )}
+                          {qrPattern === "mesh" && (
+                            <div className="absolute inset-0 pointer-events-none opacity-30 bg-[radial-gradient(#059669_1.5px,transparent_1.5px)] [background-size:6px_6px]" />
+                          )}
+                          {qrPattern === "dots" && (
+                            <div className="absolute inset-0 pointer-events-none opacity-35 bg-[radial-gradient(#000000_1.5px,transparent_1.5px)] [background-size:5px_5px] mix-blend-multiply" />
+                          )}
+
                           <QRCodeSVG
                             id="inscription-qr-code-svg"
                             value={getQrPayload(qrModalInscription, qrDataType)}
@@ -4164,6 +4186,19 @@ export default function Home() {
                             fgColor={isHighContrast ? "#000000" : qrFgColor}
                             bgColor={isHighContrast ? "#ffffff" : qrBgColor}
                             includeMargin={false}
+                            style={{
+                              filter:
+                                qrPattern === "rounded"
+                                  ? "drop-shadow(0 0 1px rgba(0,0,0,0.4))"
+                                  : qrPattern === "dots"
+                                  ? "contrast(115%)"
+                                  : qrPattern === "cyber"
+                                  ? "drop-shadow(0 0 2px rgba(217,119,6,0.35))"
+                                  : "none",
+                              strokeLinejoin: qrPattern === "rounded" || qrPattern === "dots" ? "round" : "miter",
+                              strokeWidth: qrPattern === "rounded" ? "0.35px" : "0px",
+                              stroke: qrPattern === "rounded" ? (isHighContrast ? "#000000" : qrFgColor) : "none"
+                            }}
                           />
                         </motion.div>
                       </AnimatePresence>
@@ -4198,7 +4233,20 @@ export default function Home() {
                               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                               <span>Palette Presets:</span>
                             </div>
-                            <span className="text-[10px] text-slate-500 font-sans">Quick Theme</span>
+                            <button
+                              onClick={() => {
+                                setQrFgColor("#000000");
+                                setQrBgColor("#ffffff");
+                                setIsHighContrast(false);
+                                setQrPattern("standard");
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-amber-300 px-2 py-0.5 rounded bg-slate-950 border border-slate-800 hover:border-amber-500/40 transition-all cursor-pointer font-mono"
+                              id="btn_reset_qr_colors"
+                              title="Reset foreground & background colors to default (#000000 / #ffffff), turn off High Contrast, and reset pattern to Standard"
+                            >
+                              <RotateCcw className="w-3 h-3 text-amber-400" />
+                              <span>Reset Default</span>
+                            </button>
                           </div>
                           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-0.5">
                             {[
@@ -4358,6 +4406,46 @@ export default function Home() {
                                 <div className="w-3 h-3 rounded-full border border-slate-500" style={{ backgroundColor: isHighContrast ? "#ffffff" : qrBgColor }} />
                               </label>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Geometric Pattern & Dot-Matrix Density Grid Panel */}
+                        <div className="flex flex-col gap-1.5 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl" id="qr_pattern_grid_panel">
+                          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                            <div className="flex items-center gap-1.5">
+                              <Grid className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Pattern & Overlay Grid:</span>
+                            </div>
+                            <span className="text-[10px] text-amber-400/90 font-mono capitalize">{qrPattern}</span>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-0.5">
+                            {[
+                              { id: "standard", name: "Standard", desc: "Classic 1:1 Square Vector Modules", icon: Square },
+                              { id: "dots", name: "Dot Matrix", desc: "Circular Dot Density Overlay", icon: CircleDot },
+                              { id: "rounded", name: "Rounded", desc: "Smooth Curved Module Corners", icon: Disc },
+                              { id: "cyber", name: "Cyber Mesh", desc: "Geometric Grid Mesh Overlay", icon: Grid },
+                              { id: "circuit", name: "Circuit Line", desc: "Tech Trace & Node Overlay", icon: Cpu },
+                              { id: "mesh", name: "Micro Dot", desc: "High Density Pixel Matrix Overlay", icon: LayoutGrid },
+                            ].map((pat) => {
+                              const IconComp = pat.icon;
+                              const isActive = qrPattern === pat.id;
+                              return (
+                                <button
+                                  key={`pat_${pat.id}`}
+                                  onClick={() => setQrPattern(pat.id as any)}
+                                  className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-mono transition-all cursor-pointer ${
+                                    isActive
+                                      ? "bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-sm ring-1 ring-amber-500/30"
+                                      : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                                  }`}
+                                  title={`${pat.name}: ${pat.desc}`}
+                                  id={`qr_pattern_${pat.id}`}
+                                >
+                                  <IconComp className="w-3 h-3 text-amber-400 shrink-0" />
+                                  <span className="truncate">{pat.name}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
