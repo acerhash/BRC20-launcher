@@ -5698,10 +5698,10 @@ export default function Home() {
                     <button
                       onClick={handleDownloadPng}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold font-mono transition-all shadow-md shadow-amber-500/10 cursor-pointer"
-                      id="save_qr_png_btn"
+                      id="download_png_btn"
                     >
                       <Download className="w-4 h-4 text-slate-950" />
-                      Save as PNG
+                      Download PNG
                     </button>
                     <button
                       onClick={handleShareQr}
