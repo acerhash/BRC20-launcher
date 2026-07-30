@@ -6416,24 +6416,27 @@ export async function fetchVerification(
 
                         {/* Transparent Background Checkbox Bar */}
                         <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_transparent_bg_bar">
-                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
-                            <Layers className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Transparent Background:</span>
-                          </div>
                           <label
-                            className="flex items-center gap-2 cursor-pointer text-[11px] font-mono text-slate-300 hover:text-amber-300 transition-colors"
+                            htmlFor="qr_transparent_bg_checkbox"
+                            className="flex items-center gap-2 cursor-pointer text-[11px] font-mono text-slate-300 hover:text-amber-300 transition-colors w-full justify-between"
                             id="qr_transparent_bg_checkbox_wrapper"
                           >
-                            <input
-                              type="checkbox"
-                              checked={qrTransparentBg}
-                              onChange={(e) => setQrTransparentBg(e.target.checked)}
-                              className="w-3.5 h-3.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500/50 focus:ring-offset-slate-900 bg-slate-950 cursor-pointer"
-                              id="qr_transparent_bg_checkbox"
-                            />
-                            <span className={qrTransparentBg ? "text-amber-300 font-bold" : "text-slate-400"}>
-                              {qrTransparentBg ? "Enabled (Overrides BG)" : "Disabled"}
-                            </span>
+                            <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                              <Layers className="w-3.5 h-3.5 text-amber-400" />
+                              <span className="font-bold text-slate-200">Enable Transparent Background</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={qrTransparentBg}
+                                onChange={(e) => setQrTransparentBg(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500/50 focus:ring-offset-slate-900 bg-slate-950 cursor-pointer"
+                                id="qr_transparent_bg_checkbox"
+                              />
+                              <span className={qrTransparentBg ? "text-amber-300 font-bold" : "text-slate-400"}>
+                                {qrTransparentBg ? "Enabled (Overrides BG)" : "Disabled"}
+                              </span>
+                            </div>
                           </label>
                         </div>
 
@@ -6467,7 +6470,11 @@ export async function fetchVerification(
                                 <option value="rounded">Rounded Corners</option>
                               </select>
 
-                              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-mono hover:text-amber-300 transition-colors" id="enable_pattern_overlays_wrapper">
+                              <label
+                                htmlFor="enable_pattern_overlays_checkbox"
+                                className="flex items-center gap-1.5 cursor-pointer text-[11px] font-mono hover:text-amber-300 transition-colors"
+                                id="enable_pattern_overlays_wrapper"
+                              >
                                 <input
                                   type="checkbox"
                                   checked={enablePatternOverlays}
@@ -6476,7 +6483,7 @@ export async function fetchVerification(
                                   id="enable_pattern_overlays_checkbox"
                                 />
                                 <span className={enablePatternOverlays ? "text-amber-300 font-bold" : "text-slate-400"}>
-                                  Enable Overlays
+                                  Enable Pattern Overlays
                                 </span>
                               </label>
                             </div>
