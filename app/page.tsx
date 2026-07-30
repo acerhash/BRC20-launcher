@@ -6153,6 +6153,13 @@ export async function fetchVerification(
                           id="qr_canvas_wrapper"
                         >
                           {/* Geometric Pattern & Dot-Matrix Density Overlay Layers */}
+                          {enablePatternOverlays && (qrPattern === "standard" || qrPattern === "rounded") && (
+                            <div
+                              className="absolute inset-0 opacity-20 bg-[linear-gradient(to_right,#d97706_1px,transparent_1px),linear-gradient(to_bottom,#d97706_1px,transparent_1px)]"
+                              style={{ pointerEvents: "none", backgroundSize: "8px 8px" }}
+                              id="qr_overlay_grid"
+                            />
+                          )}
                           {enablePatternOverlays && qrPattern === "cyber" && (
                             <div
                               className="absolute inset-0 opacity-25 bg-[radial-gradient(#d97706_1.5px,transparent_1.5px)]"
