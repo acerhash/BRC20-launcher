@@ -5927,11 +5927,11 @@ export async function fetchVerification(
                     <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 border border-slate-800/80 rounded-xl gap-3" id="qr_display_container">
                       <AnimatePresence mode="wait">
                         <motion.div
-                          key={`${qrModalInscription.id}-${qrDataType}`}
-                          initial={{ opacity: 0, scale: 0.95 }}
+                          key={`${qrModalInscription.id}-${qrDataType}-${qrPattern}-${qrFgColor}-${qrBgColor}-${isHighContrast}-${qrTransparentBg}-${enablePatternOverlays}`}
+                          initial={{ opacity: 0, scale: 0.96 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          exit={{ opacity: 0, scale: 0.96 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
                           className={`p-4 rounded-xl shadow-lg border-4 border-amber-500/30 flex items-center justify-center transition-all relative overflow-hidden ${
                             qrTransparentBg ? "bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:8px_8px]" : ""
                           }`}
@@ -5940,16 +5940,32 @@ export async function fetchVerification(
                         >
                           {/* Geometric Pattern & Dot-Matrix Density Overlay Layers */}
                           {enablePatternOverlays && qrPattern === "cyber" && (
-                            <div className="absolute inset-0 pointer-events-none opacity-25 bg-[radial-gradient(#d97706_1.5px,transparent_1.5px)] [background-size:8px_8px]" />
+                            <div
+                              className="absolute inset-0 opacity-25 bg-[radial-gradient(#d97706_1.5px,transparent_1.5px)]"
+                              style={{ pointerEvents: "none", backgroundSize: "8px 8px" }}
+                              id="qr_overlay_cyber"
+                            />
                           )}
                           {enablePatternOverlays && qrPattern === "circuit" && (
-                            <div className="absolute inset-0 pointer-events-none opacity-20 border border-amber-500/40 bg-[linear-gradient(to_right,#d97706_1px,transparent_1px),linear-gradient(to_bottom,#d97706_1px,transparent_1px)] [background-size:12px_12px]" />
+                            <div
+                              className="absolute inset-0 opacity-20 border border-amber-500/40 bg-[linear-gradient(to_right,#d97706_1px,transparent_1px),linear-gradient(to_bottom,#d97706_1px,transparent_1px)]"
+                              style={{ pointerEvents: "none", backgroundSize: "12px 12px" }}
+                              id="qr_overlay_circuit"
+                            />
                           )}
                           {enablePatternOverlays && qrPattern === "mesh" && (
-                            <div className="absolute inset-0 pointer-events-none opacity-30 bg-[radial-gradient(#059669_1.5px,transparent_1.5px)] [background-size:6px_6px]" />
+                            <div
+                              className="absolute inset-0 opacity-30 bg-[radial-gradient(#059669_1.5px,transparent_1.5px)]"
+                              style={{ pointerEvents: "none", backgroundSize: "6px 6px" }}
+                              id="qr_overlay_mesh"
+                            />
                           )}
                           {enablePatternOverlays && qrPattern === "dots" && (
-                            <div className="absolute inset-0 pointer-events-none opacity-35 bg-[radial-gradient(#000000_1.5px,transparent_1.5px)] [background-size:5px_5px] mix-blend-multiply" />
+                            <div
+                              className="absolute inset-0 opacity-35 bg-[radial-gradient(#000000_1.5px,transparent_1.5px)] mix-blend-multiply"
+                              style={{ pointerEvents: "none", backgroundSize: "5px 5px" }}
+                              id="qr_overlay_dots"
+                            />
                           )}
 
                           <QRCodeSVG
@@ -6208,24 +6224,48 @@ export async function fetchVerification(
                         </div>
 
                         {/* Geometric Pattern & Dot-Matrix Density Grid Panel */}
-                        <div className="flex flex-col gap-1.5 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl" id="qr_pattern_grid_panel">
+                        <div className="flex flex-col gap-2 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl" id="qr_pattern_grid_panel">
                           <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 flex-wrap gap-2">
                             <div className="flex items-center gap-1.5">
                               <Grid className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Pattern & Overlay Grid:</span>
+                              <span>Pattern Overlay:</span>
                             </div>
-                            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-mono hover:text-amber-300 transition-colors" id="enable_pattern_overlays_wrapper">
-                              <input
-                                type="checkbox"
-                                checked={enablePatternOverlays}
-                                onChange={(e) => setEnablePatternOverlays(e.target.checked)}
-                                className="w-3.5 h-3.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500/50 focus:ring-offset-slate-900 bg-slate-950 cursor-pointer"
-                                id="enable_pattern_overlays_checkbox"
-                              />
-                              <span className={enablePatternOverlays ? "text-amber-300 font-bold" : "text-slate-400"}>
-                                Enable Pattern Overlays
-                              </span>
-                            </label>
+
+                            <div className="flex items-center gap-2">
+                              {/* Geometric Pattern Dropdown Select */}
+                              <select
+                                value={qrPattern}
+                                onChange={(e) => {
+                                  const val = e.target.value as any;
+                                  setQrPattern(val);
+                                  if (val !== "standard") {
+                                    setEnablePatternOverlays(true);
+                                  }
+                                }}
+                                className="bg-slate-950 border border-slate-700 hover:border-amber-500/50 text-amber-300 rounded-lg text-xs font-mono py-1 px-2 focus:outline-none focus:border-amber-500 cursor-pointer"
+                                id="qr_pattern_dropdown_select"
+                              >
+                                <option value="standard">Standard (No Overlay)</option>
+                                <option value="cyber">Cyber Mesh (8px x 8px)</option>
+                                <option value="circuit">Circuit Line (12px x 12px)</option>
+                                <option value="mesh">Micro Dot (6px x 6px)</option>
+                                <option value="dots">Dot Matrix (5px x 5px)</option>
+                                <option value="rounded">Rounded Corners</option>
+                              </select>
+
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-mono hover:text-amber-300 transition-colors" id="enable_pattern_overlays_wrapper">
+                                <input
+                                  type="checkbox"
+                                  checked={enablePatternOverlays}
+                                  onChange={(e) => setEnablePatternOverlays(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500/50 focus:ring-offset-slate-900 bg-slate-950 cursor-pointer"
+                                  id="enable_pattern_overlays_checkbox"
+                                />
+                                <span className={enablePatternOverlays ? "text-amber-300 font-bold" : "text-slate-400"}>
+                                  Enable Overlays
+                                </span>
+                              </label>
+                            </div>
                           </div>
                           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-0.5">
                             {[
