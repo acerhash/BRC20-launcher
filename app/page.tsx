@@ -29,6 +29,8 @@ import {
   Rocket,
   Receipt,
   ShieldAlert,
+  ShieldCheck,
+  BookOpen,
   Lock,
   Unlock,
   AlertTriangle,
@@ -730,7 +732,7 @@ const INITIAL_LEDGER: LedgerBalance[] = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments" | "airdrop" | "notifications" | "base_trading">("tokens");
+  const [activeTab, setActiveTab] = useState<"tokens" | "inscriptions" | "ledger" | "b20_launchpad" | "b20_payments" | "airdrop" | "notifications" | "base_trading" | "base_verify">("tokens");
   const [searchQuery, setSearchQuery] = useState("");
   const [mintFilter, setMintFilter] = useState<"all" | "completed" | "inprogress">("all");
   const [themeMode, setThemeMode] = useState<"slate" | "oled" | "cyber" | "emerald" | "light">("slate");
@@ -1629,6 +1631,121 @@ export default function Home() {
     }, 1500);
   };
 
+  // Base Verify & Base Developer Docs State
+  const [bvProvider, setBvProvider] = useState<"coinbase" | "x" | "instagram" | "tiktok">("coinbase");
+  const [bvCondition, setBvCondition] = useState("coinbase_one_active eq true");
+  const [bvConsumerContract, setBvConsumerContract] = useState("0x3ccD255C67a129e780F945Fa1773441Ec100059f");
+  const [bvSiweMessage, setBvSiweMessage] = useState("");
+  const [bvSigned, setBvSigned] = useState(false);
+  const [bvStep, setBvStep] = useState<number>(1);
+  const [bvIsLoading, setBvIsLoading] = useState(false);
+  const [bvResponse, setBvResponse] = useState<{
+    status: number;
+    identityHash?: string;
+    expiration?: number;
+    signature?: string;
+    error?: string;
+    message?: string;
+  } | null>(null);
+  const [bvCodeTab, setBvCodeTab] = useState<"solidity" | "typescript" | "api" | "errors">("solidity");
+  const [bvCopiedDocsIndex, setBvCopiedDocsIndex] = useState(false);
+  const [bvCopiedCode, setBvCopiedCode] = useState(false);
+  const [bvSimulateErrorMode, setBvSimulateErrorMode] = useState<"none" | "404_unverified" | "400_conditions" | "404_no_contract">("none");
+
+  // Handler to update default contract and condition based on provider selection
+  const handleSelectBvProvider = (provider: "coinbase" | "x" | "instagram" | "tiktok") => {
+    setBvProvider(provider);
+    setBvSigned(false);
+    setBvResponse(null);
+    setBvStep(1);
+    if (provider === "coinbase") {
+      setBvCondition("coinbase_one_active eq true");
+      setBvConsumerContract("0x3ccD255C67a129e780F945Fa1773441Ec100059f");
+    } else if (provider === "x") {
+      setBvCondition("followers gte 1000");
+      setBvConsumerContract("0x691fedA6dfCd10082b195b2453EBC7c87ff31678");
+    } else if (provider === "instagram") {
+      setBvCondition("followers_count gte 5000");
+      setBvConsumerContract("0x917fB125c11099a8bC7721A041d5E192f1b40201");
+    } else if (provider === "tiktok") {
+      setBvCondition("follower_count gte 10000");
+      setBvConsumerContract("0x5412A89Ea012a91280BC82012d12920230f82199");
+    }
+  };
+
+  // Handler to generate SIWE Message
+  const handleGenerateSiweMessage = () => {
+    const userAddr = farcasterUser?.custodyAddress || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
+    const nonce = Math.random().toString(36).substring(2, 10);
+    const domain = "app.baseverify.io";
+    const uri = "https://app.baseverify.io";
+    const contract = bvConsumerContract || "0x691fedA6dfCd10082b195b2453EBC7c87ff31678";
+    
+    const msg = `${domain} wants you to sign in with your Ethereum account:\n${userAddr}\n\nClaim eligibility for a Base Verify onchain benefit.\n\nURI: ${uri}\nVersion: 1\nChain ID: 84532\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}\nResources:\n- eip155:84532:${contract}`;
+    setBvSiweMessage(msg);
+    setBvStep(2);
+  };
+
+  // Handler to run Base Verify API simulation
+  const handleRunBvSimulation = () => {
+    if (!bvSiweMessage) handleGenerateSiweMessage();
+    setBvIsLoading(true);
+    setBvResponse(null);
+    setBvStep(2);
+
+    setTimeout(() => {
+      setBvStep(3);
+      setTimeout(() => {
+        setBvIsLoading(false);
+        setBvSigned(true);
+
+        if (bvSimulateErrorMode === "404_unverified") {
+          setBvResponse({
+            status: 404,
+            error: "verification_not_found",
+            message: `User wallet has no verified ${bvProvider.toUpperCase()} credential on Base Verify. Please redirect user to https://verify.base.dev`
+          });
+          setBvStep(2);
+          return;
+        }
+
+        if (bvSimulateErrorMode === "400_conditions") {
+          setBvResponse({
+            status: 400,
+            error: "conditions_not_satisfied",
+            message: `User wallet is verified on ${bvProvider.toUpperCase()} but does not satisfy policy condition: [${bvCondition}].`
+          });
+          setBvStep(2);
+          return;
+        }
+
+        if (bvSimulateErrorMode === "404_no_contract") {
+          setBvResponse({
+            status: 404,
+            error: "contract_not_found",
+            message: `Contract ${bvConsumerContract} is not deployed on Base Sepolia (84532) or does not expose provider()/conditions().`
+          });
+          setBvStep(2);
+          return;
+        }
+
+        // Success 200 OK
+        const mockIdentityHash = `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`.padEnd(66, "0");
+        const exp = Math.floor(Date.now() / 1000) + 300;
+        const mockSig = `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`;
+
+        setBvResponse({
+          status: 200,
+          identityHash: mockIdentityHash,
+          expiration: exp,
+          signature: mockSig,
+          message: "Verification generated successfully! Passed BaseVerifyConsumer._verify() check on SignerRegistry."
+        });
+        setBvStep(4);
+      }, 800);
+    }, 800);
+  };
+
   // Export Reconciled B20 Orders to CSV
   const handleExportOrdersCSV = () => {
     if (!b20Orders || b20Orders.length === 0) return;
@@ -2461,6 +2578,21 @@ export default function Home() {
                 Base Swap & Trading
                 <span className="text-[9px] px-1.5 py-0.2 bg-cyan-400 text-slate-950 rounded-full font-bold uppercase tracking-wider">
                   HOT
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab("base_verify")}
+                className={`flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-all relative ${
+                  activeTab === "base_verify"
+                    ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+                    : "text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/40"
+                }`}
+                id="tab_btn_base_verify"
+              >
+                <ShieldCheck className="w-4 h-4 text-indigo-300" />
+                Base Verify & Docs
+                <span className="text-[9px] px-1.5 py-0.2 bg-indigo-500 text-white rounded-full font-bold uppercase tracking-wider">
+                  VERIFY
                 </span>
               </button>
             </div>
@@ -4962,6 +5094,626 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tab Content 9: Base Verify Onchain & Base Developer Documentation Index */}
+            {activeTab === "base_verify" && (
+              <div className="flex flex-col gap-6" id="base_verify_tab_content">
+                {/* Top Documentation Index & Overview Banner */}
+                <div className="bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/80 border border-indigo-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                  <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                  
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-indigo-500/20 pb-4 mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <ShieldCheck className="w-6 h-6 text-indigo-400" />
+                        <h2 className="text-lg font-bold text-white">Verify Users Onchain & Base Documentation Index</h2>
+                        <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-mono font-bold">
+                          Base Sepolia 84532
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300">
+                        Enforce Sybil resistance (&quot;one real person, once&quot;) and policy gating directly inside Base smart contracts using short-lived EIP-712 verifications.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start md:self-auto">
+                      <a
+                        href="https://base-verify-onchain-demo.vercel.app/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Live Demo
+                      </a>
+                      <a
+                        href="https://forms.gle/WTcuWyKkvUV6gGik6"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-medium transition-all"
+                      >
+                        Reach Out
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Documentation Index Link Card */}
+                  <div className="bg-slate-950/80 border border-blue-500/30 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono">
+                    <div className="flex items-start gap-2.5">
+                      <BookOpen className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold text-blue-300 flex items-center gap-2">
+                          <span>Documentation Index:</span>
+                          <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-mono">llms.txt</span>
+                        </div>
+                        <div className="text-slate-400 text-[11px] mt-0.5 select-all">
+                          Fetch full documentation index at: <span className="text-white underline font-bold">https://docs.base.org/llms.txt</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText("https://docs.base.org/llms.txt");
+                          setBvCopiedDocsIndex(true);
+                          setTimeout(() => setBvCopiedDocsIndex(false), 2000);
+                        }}
+                        className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-900/40 hover:bg-blue-900/60 text-blue-200 border border-blue-700/50 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                        id="btn_copy_docs_index"
+                      >
+                        {bvCopiedDocsIndex ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-blue-400" />}
+                        {bvCopiedDocsIndex ? "Copied Index URL!" : "Copy Index URL"}
+                      </button>
+                      <a
+                        href="https://docs.base.org/llms.txt"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg"
+                        title="Open llms.txt in new tab"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Base Sepolia Specifications Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-xs font-mono">
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">SignerRegistry (Base Sepolia)</span>
+                      <span className="text-indigo-300 font-bold text-[11px] truncate select-all" title="0x4f15593fbF7e3491d15080e1610E7AF8deBA1a02">
+                        0x4f15593f...a02
+                      </span>
+                    </div>
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">API Base URL</span>
+                      <span className="text-cyan-300 font-bold text-[11px]">https://verify.base.dev/v1</span>
+                    </div>
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Chain ID</span>
+                      <span className="text-emerald-300 font-bold text-[11px]">Base Sepolia (84532)</span>
+                    </div>
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Consumer Base Contract</span>
+                      <span className="text-amber-300 font-bold text-[11px]">BaseVerifyConsumer.sol</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Core 3 Architectural Pillars */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                      <ShieldAlert className="w-4 h-4" />
+                      <span>1. Sybil Resistance (`identityHash`)</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Deterministic one-way dedupe key generated per identity and per contract. The same real person produces the same hash across any number of wallets, blocking duplicate claims.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
+                      <Lock className="w-4 h-4" />
+                      <span>2. Policy Gating</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Declare an immutable policy (`provider` + `conditions`) in your contract. Base Verify reads it onchain via `eth_call` and signs verifications only if credentials pass.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>3. Zero Claim Backend</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Verification signed as EIP-712 typed data and validated inside your smart contract by `SignerRegistry.verifyVerification()`. No user privacy data exposed.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Interactive Verification & SIWE Playground */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-6" id="base_verify_playground">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-5 h-5 text-indigo-400" />
+                      <div>
+                        <h3 className="font-bold text-white text-base">Interactive Onchain Verification Playground</h3>
+                        <p className="text-xs text-slate-400">Simulate SIWE auth, Base Verify API signing, and contract verification flow.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 font-mono text-xs">
+                      <span className="text-slate-400">Simulate Response Mode:</span>
+                      <select
+                        value={bvSimulateErrorMode}
+                        onChange={(e) => setBvSimulateErrorMode(e.target.value as any)}
+                        className="bg-slate-950 border border-slate-800 text-slate-300 rounded-lg px-2 py-1 text-xs font-mono focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="none">200 OK (Verified)</option>
+                        <option value="404_unverified">404 verification_not_found</option>
+                        <option value="400_conditions">400 conditions_not_satisfied</option>
+                        <option value="404_no_contract">404 contract_not_found</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Step Selector & Configuration Inputs */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Provider Selector */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 mb-1.5 font-mono">1. Select Credential Provider</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: "coinbase", label: "Coinbase One", color: "text-blue-400" },
+                          { id: "x", label: "X / Twitter", color: "text-sky-400" },
+                          { id: "instagram", label: "Instagram", color: "text-pink-400" },
+                          { id: "tiktok", label: "TikTok", color: "text-emerald-400" }
+                        ].map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => handleSelectBvProvider(p.id as any)}
+                            className={`p-2.5 rounded-xl text-xs font-bold font-mono border text-left transition-all flex items-center justify-between cursor-pointer ${
+                              bvProvider === p.id
+                                ? "bg-indigo-950/60 border-indigo-500 text-white shadow-md shadow-indigo-500/10"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                            }`}
+                          >
+                            <span className={p.color}>{p.label}</span>
+                            {bvProvider === p.id && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Policy Conditions Display */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 mb-1.5 font-mono">2. Contract Policy Conditions</label>
+                      <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col gap-1 text-xs font-mono">
+                        <div className="flex justify-between text-slate-400 text-[11px]">
+                          <span>provider():</span>
+                          <span className="text-indigo-300 font-bold">&quot;{bvProvider}&quot;</span>
+                        </div>
+                        <div className="flex justify-between text-slate-400 text-[11px]">
+                          <span>conditions():</span>
+                          <span className="text-emerald-300 font-bold">[{bvCondition}]</span>
+                        </div>
+                        <div className="mt-1 pt-1 border-t border-slate-900 text-[10px] text-slate-500">
+                          Read onchain via eth_call by Base Verify
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Consumer Contract Address */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 mb-1.5 font-mono">3. Target Consumer Contract</label>
+                      <input
+                        type="text"
+                        value={bvConsumerContract}
+                        onChange={(e) => setBvConsumerContract(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-indigo-300 font-mono focus:outline-none focus:border-indigo-500"
+                        placeholder="0x..."
+                      />
+                      <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                        Base Sepolia consumer contract address
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Execution Steps & Action Trigger */}
+                  <div className="flex flex-col gap-4 bg-slate-950 border border-slate-800 rounded-xl p-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 font-mono text-xs flex-wrap">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${bvStep >= 1 ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-500"}`}>1</span>
+                        <span className={bvStep >= 1 ? "text-white font-bold" : "text-slate-500"}>SIWE Message</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+                        
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${bvStep >= 2 ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-500"}`}>2</span>
+                        <span className={bvStep >= 2 ? "text-white font-bold" : "text-slate-500"}>POST /v1/onchain_verifications</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${bvStep >= 4 ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-500"}`}>3</span>
+                        <span className={bvStep >= 4 ? "text-emerald-400 font-bold" : "text-slate-500"}>_verify()</span>
+                      </div>
+
+                      <button
+                        onClick={handleRunBvSimulation}
+                        disabled={bvIsLoading}
+                        className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center"
+                        id="btn_run_bv_simulation"
+                      >
+                        {bvIsLoading ? (
+                          <>
+                            <Activity className="w-4 h-4 animate-spin text-white" />
+                            Processing SIWE & Verifying...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 text-white fill-white" />
+                            Run Onchain Verification Simulation
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* SIWE Message Output */}
+                    {bvSiweMessage && (
+                      <div className="flex flex-col gap-1.5 font-mono text-xs">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <span>SIWE Message Payload:</span>
+                          <span className="text-slate-500">Statement: &quot;Claim eligibility for a Base Verify onchain benefit.&quot;</span>
+                        </div>
+                        <pre className="p-3 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 text-[11px] overflow-x-auto whitespace-pre-wrap select-all">
+                          {bvSiweMessage}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* API & Contract Verification Response Box */}
+                    {bvResponse && (
+                      <div className={`p-4 rounded-xl border flex flex-col gap-2 font-mono text-xs ${
+                        bvResponse.status === 200
+                          ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-200"
+                          : "bg-rose-950/40 border-rose-500/30 text-rose-200"
+                      }`}>
+                        <div className="flex items-center justify-between font-bold border-b border-white/10 pb-2">
+                          <div className="flex items-center gap-2">
+                            {bvResponse.status === 200 ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <AlertTriangle className="w-4 h-4 text-rose-400" />
+                            )}
+                            <span>Status: {bvResponse.status} {bvResponse.status === 200 ? "OK" : bvResponse.error}</span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-black/30">
+                            {bvResponse.status === 200 ? "SignerRegistry Verified" : "API Error Response"}
+                          </span>
+                        </div>
+
+                        <p className="text-xs leading-relaxed opacity-90">{bvResponse.message}</p>
+
+                        {bvResponse.status === 200 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2 pt-2 border-t border-white/10 text-[11px]">
+                            <div className="bg-black/30 p-2 rounded">
+                              <span className="text-slate-400 block text-[10px]">identityHash (Dedupe Key):</span>
+                              <span className="text-emerald-300 font-bold truncate block select-all">{bvResponse.identityHash}</span>
+                            </div>
+                            <div className="bg-black/30 p-2 rounded">
+                              <span className="text-slate-400 block text-[10px]">expiration (Unix Sec):</span>
+                              <span className="text-cyan-300 font-bold block">{bvResponse.expiration}</span>
+                            </div>
+                            <div className="bg-black/30 p-2 rounded">
+                              <span className="text-slate-400 block text-[10px]">EIP-712 Signature:</span>
+                              <span className="text-indigo-300 font-bold truncate block select-all">{bvResponse.signature}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Supported Providers and Conditions Table */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-indigo-400" />
+                      <h3 className="font-bold text-white text-base">Supported Providers & Conditions Reference</h3>
+                    </div>
+                    <span className="text-xs font-mono text-slate-400">All conditions evaluated with AND logic</span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs font-mono text-slate-300 border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/60 uppercase text-[10px]">
+                          <th className="py-2.5 px-3">Provider</th>
+                          <th className="py-2.5 px-3">Condition Name</th>
+                          <th className="py-2.5 px-3">Type</th>
+                          <th className="py-2.5 px-3">Allowed Operators</th>
+                          <th className="py-2.5 px-3">Example Condition</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        <tr className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-bold text-sky-400">x</td>
+                          <td className="py-2.5 px-3 text-white">followers</td>
+                          <td className="py-2.5 px-3 text-slate-400">int</td>
+                          <td className="py-2.5 px-3 text-amber-300">eq, gt, gte, lt, lte</td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">followers gte 1000</td>
+                        </tr>
+                        <tr className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-bold text-sky-400">x</td>
+                          <td className="py-2.5 px-3 text-white">verified</td>
+                          <td className="py-2.5 px-3 text-slate-400">bool</td>
+                          <td className="py-2.5 px-3 text-amber-300">eq</td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">verified eq true</td>
+                        </tr>
+                        <tr className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-bold text-sky-400">x</td>
+                          <td className="py-2.5 px-3 text-white">verified_type</td>
+                          <td className="py-2.5 px-3 text-slate-400">string</td>
+                          <td className="py-2.5 px-3 text-amber-300">eq</td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">verified_type eq blue</td>
+                        </tr>
+                        <tr className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-bold text-blue-400">coinbase</td>
+                          <td className="py-2.5 px-3 text-white">coinbase_one_active</td>
+                          <td className="py-2.5 px-3 text-slate-400">bool</td>
+                          <td className="py-2.5 px-3 text-amber-300">eq</td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">coinbase_one_active eq true</td>
+                        </tr>
+                        <tr className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-bold text-blue-400">coinbase</td>
+                          <td className="py-2.5 px-3 text-white">coinbase_one_billed</td>
+                          <td className="py-2.5 px-3 text-slate-400">bool</td>
+                          <td className="py-2.5 px-3 text-amber-300">eq</td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">coinbase_one_billed eq true</td>
+                        </tr>
+                        <tr className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-bold text-pink-400">instagram</td>
+                          <td className="py-2.5 px-3 text-white">followers_count</td>
+                          <td className="py-2.5 px-3 text-slate-400">int</td>
+                          <td className="py-2.5 px-3 text-amber-300">eq, gt, gte, lt, lte</td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">followers_count gte 5000</td>
+                        </tr>
+                        <tr className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-bold text-emerald-400">tiktok</td>
+                          <td className="py-2.5 px-3 text-white">follower_count</td>
+                          <td className="py-2.5 px-3 text-slate-400">int</td>
+                          <td className="py-2.5 px-3 text-amber-300">eq, gt, gte, lt, lte</td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">follower_count gte 10000</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Code Snippets & Developer Integration Guide */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Code2 className="w-5 h-5 text-indigo-400" />
+                      <h3 className="font-bold text-white text-base">Integration Code & API Reference</h3>
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 font-mono text-xs flex-wrap">
+                      {[
+                        { id: "solidity", label: "IncentiveProgram.sol" },
+                        { id: "typescript", label: "fetch-verification.ts" },
+                        { id: "api", label: "POST API Payload" },
+                        { id: "errors", label: "Error Handling Matrix" }
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => setBvCodeTab(t.id as any)}
+                          className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                            bvCodeTab === t.id
+                              ? "bg-indigo-600 text-white font-bold"
+                              : "text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Solidity Tab */}
+                  {bvCodeTab === "solidity" && (
+                    <div className="flex flex-col gap-2 font-mono text-xs">
+                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                        <span>Extend BaseVerifyConsumer to define immutable policy and dedupe on identityHash</span>
+                        <button
+                          onClick={() => {
+                            const code = `// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\nimport {BaseVerifyConsumer} from "@baseverify/BaseVerifyConsumer.sol";\n\ncontract IncentiveProgram is BaseVerifyConsumer {\n    mapping(bytes32 identityHash => bool enrolled) public enrolled;\n    mapping(address wallet => bool active) public isParticipant;\n    error AlreadyEnrolled();\n\n    constructor(address registry_) BaseVerifyConsumer(registry_) {}\n\n    function provider() external pure override returns (string memory) {\n        return "coinbase";\n    }\n\n    function conditions() external pure override returns (Condition[] memory) {\n        Condition[] memory c = new Condition[](1);\n        c[0] = Condition({name: "coinbase_one_active", op: "eq", value: "true"});\n        return c;\n    }\n\n    function enroll(bytes32 identityHash, uint40 expiration, bytes calldata signature) external {\n        if (enrolled[identityHash]) revert AlreadyEnrolled();\n        _verify(identityHash, expiration, signature);\n        enrolled[identityHash] = true;\n        isParticipant[msg.sender] = true;\n    }\n}`;
+                            navigator.clipboard.writeText(code);
+                            setBvCopiedCode(true);
+                            setTimeout(() => setBvCopiedCode(false), 2000);
+                          }}
+                          className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                        >
+                          {bvCopiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          {bvCopiedCode ? "Copied!" : "Copy Code"}
+                        </button>
+                      </div>
+                      <pre className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-slate-300 text-xs overflow-x-auto whitespace-pre">
+{`// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
+
+import {BaseVerifyConsumer} from "@baseverify/BaseVerifyConsumer.sol";
+
+contract IncentiveProgram is BaseVerifyConsumer {
+    mapping(bytes32 identityHash => bool enrolled) public enrolled;
+    mapping(address wallet => bool active) public isParticipant;
+
+    error AlreadyEnrolled();
+
+    // Pass the SignerRegistry address for your chain (0x4f15593fbF7e3491d15080e1610E7AF8deBA1a02 on Base Sepolia)
+    constructor(address registry_) BaseVerifyConsumer(registry_) {}
+
+    // Your eligibility policy. Both MUST be immutable (constant / pure).
+    function provider() external pure override returns (string memory) {
+        return "coinbase";
+    }
+
+    function conditions() external pure override returns (Condition[] memory) {
+        Condition[] memory c = new Condition[](1);
+        c[0] = Condition({name: "coinbase_one_active", op: "eq", value: "true"});
+        return c;
+    }
+
+    function enroll(bytes32 identityHash, uint40 expiration, bytes calldata signature) external {
+        // One enrollment per real identity across every wallet they control.
+        if (enrolled[identityHash]) revert AlreadyEnrolled();
+
+        // Binds msg.sender as the verified wallet; reverts on bad or expired verification.
+        _verify(identityHash, expiration, signature);
+
+        enrolled[identityHash] = true;
+        isParticipant[msg.sender] = true;
+    }
+}`}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* TypeScript Tab */}
+                  {bvCodeTab === "typescript" && (
+                    <div className="flex flex-col gap-2 font-mono text-xs">
+                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                        <span>Client SIWE signing and POST request to Base Verify API</span>
+                        <button
+                          onClick={() => {
+                            const code = `import { createSiweMessage, generateSiweNonce } from 'viem/siwe';\nconst MY_CONTRACT_ADDRESS = '0x3ccD255C67a129e780F945Fa1773441Ec100059f';\nconst CHAIN_ID = 84532;\n\nexport async function fetchVerification(userAddress, signMessageAsync) {\n  const message = createSiweMessage({\n    domain: window.location.host,\n    address: userAddress,\n    statement: 'Claim eligibility for a Base Verify onchain benefit.',\n    uri: window.location.origin,\n    version: '1',\n    chainId: CHAIN_ID,\n    nonce: generateSiweNonce(),\n    resources: [\`eip155:\${CHAIN_ID}:\${MY_CONTRACT_ADDRESS}\`],\n  });\n\n  const signature = await signMessageAsync({ message });\n  const res = await fetch('https://verify.base.dev/v1/onchain_verifications', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ message, signature }),\n  });\n  if (!res.ok) throw new Error(\`Verification failed: \${res.status}\`);\n  return res.json();\n}`;
+                            navigator.clipboard.writeText(code);
+                            setBvCopiedCode(true);
+                            setTimeout(() => setBvCopiedCode(false), 2000);
+                          }}
+                          className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                        >
+                          {bvCopiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          {bvCopiedCode ? "Copied!" : "Copy Code"}
+                        </button>
+                      </div>
+                      <pre className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-slate-300 text-xs overflow-x-auto whitespace-pre">
+{`import { createSiweMessage, generateSiweNonce } from 'viem/siwe';
+
+const MY_CONTRACT_ADDRESS = '0x3ccD255C67a129e780F945Fa1773441Ec100059f'; // your deployed consumer
+const CHAIN_ID = 84532; // Base Sepolia
+
+export async function fetchVerification(
+  userAddress: \`0x\${string}\`,
+  signMessageAsync: (args: { message: string }) => Promise<string>,
+) {
+  // Statement and Resources line required by Base Verify API
+  const message = createSiweMessage({
+    domain: window.location.host,
+    address: userAddress,
+    statement: 'Claim eligibility for a Base Verify onchain benefit.',
+    uri: window.location.origin,
+    version: '1',
+    chainId: CHAIN_ID,
+    nonce: generateSiweNonce(),
+    resources: [\`eip155:\${CHAIN_ID}:\${MY_CONTRACT_ADDRESS}\`],
+  });
+
+  const signature = await signMessageAsync({ message });
+
+  const res = await fetch('https://verify.base.dev/v1/onchain_verifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, signature }),
+  });
+
+  if (!res.ok) {
+    throw new Error(\`Verification failed: \${res.status}\`);
+  }
+
+  // Returns { identityHash, expiration, signature }
+  return res.json();
+}`}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* API Tab */}
+                  {bvCodeTab === "api" && (
+                    <div className="flex flex-col gap-2 font-mono text-xs">
+                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                        <span>POST /v1/onchain_verifications Request & 200 OK Response Schema</span>
+                      </div>
+                      <pre className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-slate-300 text-xs overflow-x-auto whitespace-pre">
+{`// Endpoint: POST https://verify.base.dev/v1/onchain_verifications
+// Request Headers: Content-Type: application/json (No Authorization header needed)
+
+// Request Body:
+{
+  "message": "app.example.com wants you to sign in with your Ethereum account:... Resources: - eip155:84532:0x3ccD...",
+  "signature": "0x1234567890abcdef..."
+}
+
+// 200 OK Response Payload:
+{
+  "identityHash": "0x88c9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+  "expiration": 1723497600,
+  "signature": "0x4d3c2b1a098877665544332211..."
+}`}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Error Handling Matrix Tab */}
+                  {bvCodeTab === "errors" && (
+                    <div className="overflow-x-auto font-mono text-xs">
+                      <table className="w-full text-left text-slate-300 border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/60 uppercase text-[10px]">
+                            <th className="py-2.5 px-3">Status Code</th>
+                            <th className="py-2.5 px-3">Error Code</th>
+                            <th className="py-2.5 px-3">Description</th>
+                            <th className="py-2.5 px-3">Recommended Client Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          <tr className="hover:bg-slate-800/30">
+                            <td className="py-2.5 px-3 text-rose-400 font-bold">404</td>
+                            <td className="py-2.5 px-3 text-amber-300">contract_not_found</td>
+                            <td className="py-2.5 px-3 text-slate-300">Contract not deployed on chain or missing policy</td>
+                            <td className="py-2.5 px-3 text-slate-400">Verify contract address and Base Sepolia deployment</td>
+                          </tr>
+                          <tr className="hover:bg-slate-800/30">
+                            <td className="py-2.5 px-3 text-rose-400 font-bold">404</td>
+                            <td className="py-2.5 px-3 text-amber-300">verification_not_found</td>
+                            <td className="py-2.5 px-3 text-slate-300">Wallet has no credential for provider</td>
+                            <td className="py-2.5 px-3 text-indigo-300 font-bold">Redirect to https://verify.base.dev?providers={`\${provider}`}</td>
+                          </tr>
+                          <tr className="hover:bg-slate-800/30">
+                            <td className="py-2.5 px-3 text-rose-400 font-bold">404</td>
+                            <td className="py-2.5 px-3 text-amber-300">needs_reauth</td>
+                            <td className="py-2.5 px-3 text-slate-300">Credential older than contract cutoffBlock</td>
+                            <td className="py-2.5 px-3 text-indigo-300 font-bold">Redirect user to Base Verify to re-authenticate</td>
+                          </tr>
+                          <tr className="hover:bg-slate-800/30">
+                            <td className="py-2.5 px-3 text-amber-400 font-bold">400</td>
+                            <td className="py-2.5 px-3 text-amber-300">conditions_not_satisfied</td>
+                            <td className="py-2.5 px-3 text-slate-300">Verified but does not meet policy conditions</td>
+                            <td className="py-2.5 px-3 text-slate-400">Display UI notification (do not retry)</td>
+                          </tr>
+                          <tr className="hover:bg-slate-800/30">
+                            <td className="py-2.5 px-3 text-emerald-400 font-bold">200</td>
+                            <td className="py-2.5 px-3 text-emerald-300">OK</td>
+                            <td className="py-2.5 px-3 text-slate-300">Signed verification returned</td>
+                            <td className="py-2.5 px-3 text-emerald-300 font-bold">Submit identityHash, expiration, signature to contract</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
