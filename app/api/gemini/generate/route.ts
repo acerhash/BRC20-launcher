@@ -1,6 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = 'force-dynamic';
+
 // Ensure Gemini API client is initialized server-side using lazy pattern to avoid crashing if key is missing.
 let aiClient: GoogleGenAI | null = null;
 

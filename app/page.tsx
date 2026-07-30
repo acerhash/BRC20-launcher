@@ -6141,7 +6141,7 @@ export async function fetchVerification(
                     <div className="flex flex-col items-center justify-center p-6 bg-slate-950/80 border border-slate-800/80 rounded-xl gap-3" id="qr_display_container">
                       <AnimatePresence mode="wait">
                         <motion.div
-                          key={`${qrModalInscription.id}-${qrDataType}-${qrPattern}-${qrFgColor}-${qrBgColor}-${isHighContrast}-${qrTransparentBg}-${enablePatternOverlays}`}
+                          key={`${qrModalInscription.id}-${qrDataType}-${qrPattern}-${qrFgColor}-${qrBgColor}-${isHighContrast}-${qrTransparentBg}-${enablePatternOverlays}-${qrErrorLevel}`}
                           initial={{ opacity: 0, scale: 0.96 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.96 }}
@@ -6160,9 +6160,9 @@ export async function fetchVerification(
                               id="qr_overlay_grid"
                             />
                           )}
-                          {enablePatternOverlays && qrPattern === "cyber" && (
+                          {enablePatternOverlays && ((qrPattern as string) === "cyber" || (qrPattern as string) === "cyber_mesh") && (
                             <div
-                              className="absolute inset-0 opacity-25 bg-[radial-gradient(#d97706_1.5px,transparent_1.5px)]"
+                              className="absolute inset-0 opacity-25 bg-[radial-gradient(#06b6d4_1.5px,transparent_1.5px)]"
                               style={{ pointerEvents: "none", backgroundSize: "8px 8px" }}
                               id="qr_overlay_cyber"
                             />
@@ -6523,6 +6523,45 @@ export async function fetchVerification(
                                 </button>
                               );
                             })}
+                          </div>
+                        </div>
+
+                        {/* Error Correction Level Range Slider Panel */}
+                        <div className="flex flex-col gap-2 px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl" id="qr_error_level_panel">
+                          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 flex-wrap gap-2">
+                            <label htmlFor="qr_error_level_range_slider" className="flex items-center gap-1.5 font-bold text-slate-200 cursor-pointer">
+                              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Error Correction Level (Resilience):</span>
+                            </label>
+                            <span className="text-amber-300 font-bold px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-[11px]">
+                              {qrErrorLevel === "L" && "Level L — ~7% Recovery"}
+                              {qrErrorLevel === "M" && "Level M — ~15% Recovery"}
+                              {qrErrorLevel === "Q" && "Level Q — ~25% Recovery"}
+                              {qrErrorLevel === "H" && "Level H — ~30% Max Resilience"}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-1 pt-1">
+                            <input
+                              type="range"
+                              min={0}
+                              max={3}
+                              step={1}
+                              value={["L", "M", "Q", "H"].indexOf(qrErrorLevel)}
+                              onChange={(e) => {
+                                const levels: ("L" | "M" | "Q" | "H")[] = ["L", "M", "Q", "H"];
+                                const idx = Number(e.target.value);
+                                setQrErrorLevel(levels[idx] || "H");
+                              }}
+                              className="w-full accent-amber-500 bg-slate-950 h-2 rounded-lg cursor-pointer border border-slate-800"
+                              id="qr_error_level_range_slider"
+                            />
+                            <div className="flex justify-between text-[10px] font-mono text-slate-400 px-0.5">
+                              <span className={qrErrorLevel === "L" ? "text-amber-300 font-bold" : ""}>L (7%)</span>
+                              <span className={qrErrorLevel === "M" ? "text-amber-300 font-bold" : ""}>M (15%)</span>
+                              <span className={qrErrorLevel === "Q" ? "text-amber-300 font-bold" : ""}>Q (25%)</span>
+                              <span className={qrErrorLevel === "H" ? "text-amber-300 font-bold" : ""}>H (30% Max)</span>
+                            </div>
                           </div>
                         </div>
                       </div>
