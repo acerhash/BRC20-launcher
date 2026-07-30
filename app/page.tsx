@@ -65,6 +65,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import Sparkline from "@/components/Sparkline";
+import RadialProgressRing from "@/components/RadialProgressRing";
 
 // Interface Definitions
 interface FarcasterUser {
@@ -137,6 +138,8 @@ interface AirdropCampaign {
   txHash: string;
   timestamp: string;
   status: "Completed" | "In Progress" | "Failed";
+  progressPercentage?: number;
+  deliveredCount?: number;
 }
 
 // Interface Definitions
@@ -559,6 +562,34 @@ export async function batchAirdropB20(
 // Initial Mock Airdrop Campaigns Data
 const INITIAL_AIRDROP_CAMPAIGNS: AirdropCampaign[] = [
   {
+    id: "airdrop-003",
+    tokenType: "Base B20",
+    tickerOrSymbol: "BUILD",
+    totalAmount: 50000,
+    recipientCount: 50,
+    perRecipientAmount: 1000,
+    memo: "Builder Grant Season 2 Airdrop",
+    txHash: "0x4c2d820194820391092a019a820391092a019483",
+    timestamp: "2026-07-29 18:30:00",
+    status: "In Progress",
+    progressPercentage: 74,
+    deliveredCount: 37
+  },
+  {
+    id: "airdrop-004",
+    tokenType: "BRC-20",
+    tickerOrSymbol: "sats",
+    totalAmount: 100000,
+    recipientCount: 100,
+    perRecipientAmount: 1000,
+    memo: "Sats Liquidity Distribution",
+    txHash: "0x5e3e920194820391092a019a820391092a019484",
+    timestamp: "2026-07-29 20:15:00",
+    status: "In Progress",
+    progressPercentage: 42,
+    deliveredCount: 42
+  },
+  {
     id: "airdrop-001",
     tokenType: "BRC-20",
     tickerOrSymbol: "ordi",
@@ -568,7 +599,9 @@ const INITIAL_AIRDROP_CAMPAIGNS: AirdropCampaign[] = [
     memo: "Genesis BRC-20 Holder Airdrop",
     txHash: "0x8a92f01982a0194820391092a019a820391092a0",
     timestamp: "2026-07-15 11:20:00",
-    status: "Completed"
+    status: "Completed",
+    progressPercentage: 100,
+    deliveredCount: 5
   },
   {
     id: "airdrop-002",
@@ -580,7 +613,23 @@ const INITIAL_AIRDROP_CAMPAIGNS: AirdropCampaign[] = [
     memo: "airdrop-season1-base-builders",
     txHash: "0x3b1c920194820391092a019a820391092a019482",
     timestamp: "2026-07-20 16:45:10",
-    status: "Completed"
+    status: "Completed",
+    progressPercentage: 100,
+    deliveredCount: 10
+  },
+  {
+    id: "airdrop-005",
+    tokenType: "Base B20",
+    tickerOrSymbol: "RPAY",
+    totalAmount: 10000,
+    recipientCount: 20,
+    perRecipientAmount: 500,
+    memo: "Regulatory Batch (Reverted)",
+    txHash: "0x6f4f920194820391092a019a820391092a019485",
+    timestamp: "2026-07-28 14:00:00",
+    status: "Failed",
+    progressPercentage: 15,
+    deliveredCount: 3
   }
 ];
 
@@ -1319,7 +1368,9 @@ export default function Home() {
       memo: airdropMemo || "Community Airdrop",
       txHash: randomTxHash,
       timestamp: nowStr,
-      status: "Completed"
+      status: "Completed",
+      progressPercentage: 100,
+      deliveredCount: addresses.length
     };
 
     setAirdropCampaigns((prev) => [newCampaign, ...prev]);
@@ -4042,7 +4093,7 @@ export default function Home() {
                             <th className="py-3 px-3">Total Airdropped</th>
                             <th className="py-3 px-3">Recipients</th>
                             <th className="py-3 px-3">Memo Tag</th>
-                            <th className="py-3 px-3 text-center">Status</th>
+                            <th className="py-3 px-3 text-center">Distribution Progress</th>
                             <th className="py-3 px-3 text-right">Timestamp</th>
                           </tr>
                         </thead>
@@ -4071,10 +4122,13 @@ export default function Home() {
                                 {campaign.memo}
                               </td>
                               <td className="py-3 px-3 text-center">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full font-bold">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                  Confirmed
-                                </span>
+                                <RadialProgressRing
+                                  progressPercentage={campaign.progressPercentage}
+                                  status={campaign.status}
+                                  deliveredCount={campaign.deliveredCount}
+                                  recipientCount={campaign.recipientCount}
+                                  id={`radial_ring_${campaign.id}`}
+                                />
                               </td>
                               <td className="py-3 px-3 text-right text-[10px] text-slate-500">
                                 {campaign.timestamp}
